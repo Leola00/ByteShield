@@ -1,200 +1,229 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ar" dir="rtl">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#0a0e17" />
-  <meta name="description" content="ByteShield – AI-powered fraud and phishing detection for messages, emails, URLs, and screenshots." />
-  <title>ByteShield – AI Fraud & Phishing Detection</title>
+  <meta name="theme-color" content="#0a1628" />
+  <meta name="description" content="مصرف الإنماء – ByteShield: فحص ذكي للاحتيال والتصيد الاحتيالي" />
+  <title>الإنماء | ByteShield</title>
   <link rel="stylesheet" href="styles.css" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet" />
 </head>
 <body>
-  <div class="app">
-    <nav class="nav">
-      <a href="#" class="nav__brand">
-        <span class="nav__logo" aria-hidden="true">
-          <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M16 2L4 8v8c0 7.2 5.1 13.9 12 15 6.9-1.1 12-7.8 12-15V8L16 2z" stroke="currentColor" stroke-width="2" fill="none"/>
-            <path d="M12 16l3 3 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-        </span>
-        ByteShield
-      </a>
-      <div class="nav__links">
-        <a href="#scan">Scan</a>
-        <a href="#how">How it works</a>
-        <a href="#features">Features</a>
-      </div>
-    </nav>
+  <!-- Alinma landing -->
+  <div class="alinma-page" id="alinma-page">
+    <header class="alinma-header">
+      <div class="alinma-header__inner">
+        <button type="button" class="btn-login">
+          تسجيل الدخول
+          <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
+        </button>
 
-    <header class="hero">
-      <div class="hero__badge">AI-Powered Security</div>
-      <h1 class="hero__title">Detect fraud before it finds you</h1>
-      <p class="hero__desc">
-        ByteShield analyzes text messages, emails, URLs, and conversation screenshots
-        to spot phishing and financial scams — with a clear risk score and actionable advice.
-      </p>
-      <a href="#scan" class="btn btn--primary">Analyze something now</a>
+        <a href="#" class="alinma-logo" aria-label="مصرف الإنماء">
+          <span class="alinma-logo__ar">الإنماء</span>
+          <span class="alinma-logo__mark" aria-hidden="true">
+            <svg viewBox="0 0 40 40" fill="none">
+              <rect x="4" y="4" width="32" height="32" rx="8" stroke="currentColor" stroke-width="2.5"/>
+              <rect x="17" y="10" width="6" height="20" rx="1" fill="currentColor"/>
+            </svg>
+          </span>
+          <span class="alinma-logo__en">alinma</span>
+        </a>
+
+        <div class="alinma-header__actions">
+          <button type="button" class="btn-outline">شخصي</button>
+          <button type="button" class="btn-menu" aria-label="القائمة">
+            <span></span><span></span><span></span>
+          </button>
+        </div>
+      </div>
     </header>
 
-    <section id="scan" class="scan">
-      <div class="scan__panel">
-        <h2 class="section-title">Security scan</h2>
-        <p class="section-desc">Paste content or upload a screenshot. ByteShield will assess the threat level.</p>
+    <main class="alinma-main">
+      <h1 class="alinma-hero__title">الوصول السريع إلى الخدمات الأساسية</h1>
+      <p class="alinma-hero__desc">وفر الوقت مع إمكانية الوصول الفوري إلى خدمات الإنماء الرئيسية</p>
 
-        <div class="tabs" role="tablist" aria-label="Input type">
-          <button class="tab tab--active" role="tab" aria-selected="true" data-tab="text">Message</button>
-          <button class="tab" role="tab" aria-selected="false" data-tab="email">Email</button>
-          <button class="tab" role="tab" aria-selected="false" data-tab="url">URL</button>
-          <button class="tab" role="tab" aria-selected="false" data-tab="screenshot">Screenshot</button>
-        </div>
+      <div class="services-grid">
+        <a href="#" class="service-card">
+          <span class="service-card__icon" aria-hidden="true">
+            <svg viewBox="0 0 48 48" fill="none"><rect x="10" y="8" width="28" height="32" rx="2" stroke="currentColor" stroke-width="2"/><path d="M16 16h16M16 22h12M16 28h8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M30 32l6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          </span>
+          <span class="service-card__label">افتح حسابك الآن</span>
+        </a>
 
-        <div class="tab-panels">
-          <div class="tab-panel tab-panel--active" data-panel="text">
-            <label class="field-label" for="input-text">Suspicious message</label>
-            <textarea id="input-text" class="field-input" rows="6" placeholder="Paste a text message or chat here…"></textarea>
-          </div>
-          <div class="tab-panel" data-panel="email" hidden>
-            <label class="field-label" for="input-email-subject">Subject</label>
-            <input id="input-email-subject" class="field-input field-input--single" type="text" placeholder="Email subject line" />
-            <label class="field-label" for="input-email-body">Email body</label>
-            <textarea id="input-email-body" class="field-input" rows="5" placeholder="Paste the full email content…"></textarea>
-          </div>
-          <div class="tab-panel" data-panel="url" hidden>
-            <label class="field-label" for="input-url">Suspicious link</label>
-            <input id="input-url" class="field-input field-input--single field-input--mono" type="url" placeholder="https://example.com/suspicious-link" />
-          </div>
-          <div class="tab-panel" data-panel="screenshot" hidden>
-            <label class="field-label">Conversation screenshot</label>
-            <div class="upload-zone" id="upload-zone">
-              <input type="file" id="input-screenshot" accept="image/*" hidden />
-              <div class="upload-zone__empty" id="upload-empty">
-                <span class="upload-zone__icon" aria-hidden="true">📷</span>
-                <p>Drop an image here or <button type="button" class="link-btn" id="upload-trigger">browse files</button></p>
-                <p class="upload-zone__hint">PNG, JPG up to 10 MB</p>
-              </div>
-              <div class="upload-zone__preview" id="upload-preview" hidden>
-                <img id="preview-img" alt="Uploaded screenshot preview" />
-                <button type="button" class="upload-zone__remove" id="upload-remove" aria-label="Remove image">×</button>
-              </div>
-            </div>
-          </div>
-        </div>
+        <a href="#" class="service-card">
+          <span class="service-card__icon" aria-hidden="true">
+            <svg viewBox="0 0 48 48" fill="none"><ellipse cx="24" cy="30" rx="14" ry="6" stroke="currentColor" stroke-width="2"/><path d="M14 26c0-6 4.5-10 10-10s10 4 10 10" stroke="currentColor" stroke-width="2"/><ellipse cx="24" cy="18" rx="6" ry="3" stroke="currentColor" stroke-width="2"/></svg>
+          </span>
+          <span class="service-card__label">اطلب تمويلك الآن</span>
+        </a>
 
-        <div class="scan__actions">
-          <button type="button" class="btn btn--primary btn--scan" id="btn-scan">
-            <span class="btn__icon" aria-hidden="true">🛡️</span>
-            Run security analysis
-          </button>
-          <button type="button" class="btn btn--ghost" id="btn-sample">Try sample scam</button>
-        </div>
-      </div>
+        <a href="#" class="service-card">
+          <span class="service-card__icon" aria-hidden="true">
+            <svg viewBox="0 0 48 48" fill="none"><path d="M12 36l8-20 8 10 8-16 4 8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="36" cy="12" r="4" stroke="currentColor" stroke-width="2"/></svg>
+          </span>
+          <span class="service-card__label">احجز موعدك الآن</span>
+        </a>
 
-      <div class="results" id="results" hidden>
-        <div class="results__header">
-          <h2 class="section-title">Analysis results</h2>
-          <span class="results__timestamp" id="results-time"></span>
-        </div>
+        <a href="#" class="service-card">
+          <span class="service-card__icon" aria-hidden="true">
+            <svg viewBox="0 0 48 48" fill="none"><path d="M16 12h16l2 8H14l2-8z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><rect x="12" y="20" width="24" height="16" rx="2" stroke="currentColor" stroke-width="2"/><circle cx="24" cy="28" r="3" stroke="currentColor" stroke-width="2"/></svg>
+          </span>
+          <span class="service-card__label">عروض &ldquo;أكثر&rdquo;</span>
+        </a>
 
-        <div class="risk-card" id="risk-card">
-          <div class="risk-gauge">
-            <svg class="risk-gauge__ring" viewBox="0 0 120 120">
-              <circle class="risk-gauge__bg" cx="60" cy="60" r="52" />
-              <circle class="risk-gauge__fill" id="risk-ring" cx="60" cy="60" r="52" />
+        <a href="#" class="service-card">
+          <span class="service-card__icon" aria-hidden="true">
+            <svg viewBox="0 0 48 48" fill="none"><rect x="8" y="14" width="32" height="22" rx="3" stroke="currentColor" stroke-width="2"/><path d="M8 20h32" stroke="currentColor" stroke-width="2"/><circle cx="32" cy="30" r="2" fill="currentColor"/><path d="M24 8v6M24 8c-3 0-5 2-5 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          </span>
+          <span class="service-card__label">مواقع الفروع والصرافات الآلية</span>
+        </a>
+
+        <button type="button" class="service-card service-card--byteshield" id="open-byteshield">
+          <span class="service-card__badge">جديد</span>
+          <span class="service-card__icon" aria-hidden="true">
+            <svg viewBox="0 0 48 48" fill="none">
+              <path d="M24 6L8 14v10c0 9.6 6.8 18.5 16 20 9.2-1.5 16-10.4 16-20V14L24 6z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+              <path d="M18 24l4 4 8-8" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
-            <div class="risk-gauge__score">
-              <span class="risk-gauge__number" id="risk-score">—</span>
-              <span class="risk-gauge__label">Risk score</span>
+          </span>
+          <span class="service-card__label">ByteShield</span>
+          <span class="service-card__sublabel">فحص الاحتيال والتصيد</span>
+        </button>
+      </div>
+    </main>
+
+    <footer class="alinma-footer">
+      <p>مصرف الإنماء · خدمة ByteShield بالذكاء الاصطناعي</p>
+    </footer>
+  </div>
+
+  <!-- ByteShield feature panel -->
+  <div class="byteshield-panel" id="byteshield-panel" hidden>
+    <header class="bs-header">
+      <button type="button" class="bs-back" id="close-byteshield" aria-label="عودة">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M12 4l-6 6 6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        عودة للخدمات
+      </button>
+      <div class="bs-header__brand">
+        <span class="alinma-logo__mark alinma-logo__mark--sm" aria-hidden="true">
+          <svg viewBox="0 0 40 40" fill="none">
+            <rect x="4" y="4" width="32" height="32" rx="8" stroke="currentColor" stroke-width="2.5"/>
+            <rect x="17" y="10" width="6" height="20" rx="1" fill="currentColor"/>
+          </svg>
+        </span>
+        <div>
+          <span class="bs-header__title">ByteShield</span>
+          <span class="bs-header__subtitle">بالتعاون مع الإنماء</span>
+        </div>
+      </div>
+    </header>
+
+    <main class="bs-main">
+      <section class="bs-intro">
+        <h1>اكتشف الاحتيال قبل أن يضرك</h1>
+        <p>يحلل ByteShield الرسائل والبريد الإلكتروني والروابط ولقطات المحادثات لاكتشاف محاولات الاحتيال المالي والتصيد.</p>
+      </section>
+
+      <div class="scan">
+        <div class="scan__panel">
+          <h2 class="section-title">فحص أمني</h2>
+          <p class="section-desc">الصق المحتوى أو ارفع لقطة شاشة لتقييم مستوى الخطر.</p>
+
+          <div class="tabs" role="tablist" aria-label="نوع المحتوى">
+            <button class="tab tab--active" role="tab" aria-selected="true" data-tab="text">رسالة</button>
+            <button class="tab" role="tab" aria-selected="false" data-tab="email">بريد</button>
+            <button class="tab" role="tab" aria-selected="false" data-tab="url">رابط</button>
+            <button class="tab" role="tab" aria-selected="false" data-tab="screenshot">لقطة</button>
+          </div>
+
+          <div class="tab-panels">
+            <div class="tab-panel tab-panel--active" data-panel="text">
+              <label class="field-label" for="input-text">رسالة مشبوهة</label>
+              <textarea id="input-text" class="field-input" rows="5" placeholder="الصق رسالة نصية أو محادثة هنا…"></textarea>
+            </div>
+            <div class="tab-panel" data-panel="email" hidden>
+              <label class="field-label" for="input-email-subject">الموضوع</label>
+              <input id="input-email-subject" class="field-input field-input--single" type="text" placeholder="موضوع البريد" />
+              <label class="field-label" for="input-email-body">محتوى البريد</label>
+              <textarea id="input-email-body" class="field-input" rows="4" placeholder="الصق محتوى البريد كاملاً…"></textarea>
+            </div>
+            <div class="tab-panel" data-panel="url" hidden>
+              <label class="field-label" for="input-url">رابط مشبوه</label>
+              <input id="input-url" class="field-input field-input--single field-input--mono" type="url" dir="ltr" placeholder="https://example.com/link" />
+            </div>
+            <div class="tab-panel" data-panel="screenshot" hidden>
+              <label class="field-label">لقطة محادثة</label>
+              <div class="upload-zone" id="upload-zone">
+                <input type="file" id="input-screenshot" accept="image/*" hidden />
+                <div class="upload-zone__empty" id="upload-empty">
+                  <span class="upload-zone__icon" aria-hidden="true">📷</span>
+                  <p>أسقط صورة هنا أو <button type="button" class="link-btn" id="upload-trigger">اختر ملف</button></p>
+                  <p class="upload-zone__hint">PNG أو JPG حتى 10 م.ب</p>
+                </div>
+                <div class="upload-zone__preview" id="upload-preview" hidden>
+                  <img id="preview-img" alt="معاينة اللقطة" />
+                  <button type="button" class="upload-zone__remove" id="upload-remove" aria-label="إزالة">×</button>
+                </div>
+              </div>
             </div>
           </div>
-          <div class="risk-summary">
-            <span class="risk-badge" id="risk-level">—</span>
-            <p class="risk-verdict" id="risk-verdict">Run a scan to see your threat assessment.</p>
+
+          <div class="scan__actions">
+            <button type="button" class="btn btn--primary btn--scan" id="btn-scan">تشغيل التحليل الأمني</button>
+            <button type="button" class="btn btn--ghost" id="btn-sample">جرب رسالة احتيال نموذجية</button>
           </div>
         </div>
 
-        <div class="results__grid">
-          <div class="result-block">
-            <h3 class="result-block__title">
-              <span aria-hidden="true">⚠️</span> Red flags detected
-            </h3>
-            <ul class="flag-list" id="flag-list"></ul>
+        <div class="results" id="results" hidden>
+          <div class="results__header">
+            <h2 class="section-title">نتائج التحليل</h2>
+            <span class="results__timestamp" id="results-time"></span>
           </div>
-          <div class="result-block">
-            <h3 class="result-block__title">
-              <span aria-hidden="true">✅</span> Recommendations
-            </h3>
-            <ul class="rec-list" id="rec-list"></ul>
+
+          <div class="risk-card" id="risk-card">
+            <div class="risk-gauge">
+              <svg class="risk-gauge__ring" viewBox="0 0 120 120">
+                <circle class="risk-gauge__bg" cx="60" cy="60" r="52" />
+                <circle class="risk-gauge__fill" id="risk-ring" cx="60" cy="60" r="52" />
+              </svg>
+              <div class="risk-gauge__score">
+                <span class="risk-gauge__number" id="risk-score">—</span>
+                <span class="risk-gauge__label">درجة الخطر</span>
+              </div>
+            </div>
+            <div class="risk-summary">
+              <span class="risk-badge" id="risk-level">—</span>
+              <p class="risk-verdict" id="risk-verdict">شغّل الفحص لعرض التقييم.</p>
+            </div>
           </div>
+
+          <div class="results__grid">
+            <div class="result-block">
+              <h3 class="result-block__title">⚠️ مؤشرات خطر</h3>
+              <ul class="flag-list" id="flag-list"></ul>
+            </div>
+            <div class="result-block">
+              <h3 class="result-block__title">✅ توصيات</h3>
+              <ul class="rec-list" id="rec-list"></ul>
+            </div>
+          </div>
+
+          <details class="ai-explanation">
+            <summary>شرح التحليل</summary>
+            <p id="ai-explanation"></p>
+          </details>
         </div>
 
-        <details class="ai-explanation">
-          <summary>AI explanation</summary>
-          <p id="ai-explanation"></p>
-        </details>
+        <div class="results-placeholder" id="results-placeholder">
+          <div class="results-placeholder__icon" aria-hidden="true">🛡️</div>
+          <p>ستظهر النتائج هنا</p>
+          <p class="results-placeholder__hint">أرسل المحتوى أعلاه للحصول على درجة الخطر والتوصيات.</p>
+        </div>
       </div>
-
-      <div class="results-placeholder" id="results-placeholder">
-        <div class="results-placeholder__icon" aria-hidden="true">🛡️</div>
-        <p>Your analysis will appear here</p>
-        <p class="results-placeholder__hint">Submit content above to get a risk score and security recommendations.</p>
-      </div>
-    </section>
-
-    <section id="how" class="how">
-      <h2 class="section-title section-title--center">How ByteShield works</h2>
-      <div class="steps">
-        <article class="step">
-          <span class="step__num">1</span>
-          <h3>Submit content</h3>
-          <p>Paste a message, email, URL, or upload a screenshot of a suspicious conversation.</p>
-        </article>
-        <article class="step">
-          <span class="step__num">2</span>
-          <h3>AI analysis</h3>
-          <p>Our engine examines language patterns, sender claims, link behavior, and visual context.</p>
-        </article>
-        <article class="step">
-          <span class="step__num">3</span>
-          <h3>Get protected</h3>
-          <p>Receive a risk score, clear explanations, and step-by-step guidance to stay safe.</p>
-        </article>
-      </div>
-    </section>
-
-    <section id="features" class="features">
-      <h2 class="section-title section-title--center">What we detect</h2>
-      <div class="feature-grid">
-        <article class="feature-card">
-          <span class="feature-card__icon">💬</span>
-          <h3>Smishing &amp; texts</h3>
-          <p>Urgent payment requests, fake delivery alerts, and impersonation in SMS and chat apps.</p>
-        </article>
-        <article class="feature-card">
-          <span class="feature-card__icon">📧</span>
-          <h3>Phishing emails</h3>
-          <p>Spoofed senders, credential harvesting, and fake invoices or bank notifications.</p>
-        </article>
-        <article class="feature-card">
-          <span class="feature-card__icon">🔗</span>
-          <h3>Malicious URLs</h3>
-          <p>Typosquatting, shortened links, and domains mimicking trusted brands.</p>
-        </article>
-        <article class="feature-card">
-          <span class="feature-card__icon">🖼️</span>
-          <h3>Screenshot analysis</h3>
-          <p>Extract and evaluate conversation context from images using vision AI.</p>
-        </article>
-      </div>
-    </section>
-
-    <footer class="footer">
-      <p><strong>ByteShield</strong> · AI-powered fraud detection</p>
-      <p class="footer__note">Demo preview — analysis uses local heuristics. Connect a live AI backend for production.</p>
-    </footer>
+    </main>
   </div>
 
   <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>

@@ -10,36 +10,36 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
   const RING_CIRCUMFERENCE = 327;
 
   const PHISHING_PATTERNS = [
-    { re: /urgent|immediately|act now|within \d+ hours?|last chance|expires today/i, flag: 'Creates artificial urgency to bypass careful thinking', weight: 18 },
-    { re: /verify your (identity|account)|confirm your (details|information)|update your (payment|billing)/i, flag: 'Requests identity or account verification — common phishing tactic', weight: 20 },
-    { re: /otp|one.?time|verification code|pin code|security code/i, flag: 'Asks for OTP or security codes — never share these', weight: 25 },
-    { re: /password|credentials|login details|ssn|social security/i, flag: 'Requests sensitive credentials or personal identifiers', weight: 22 },
-    { re: /wire transfer|send money|bitcoin|crypto|gift card|western union/i, flag: 'Payment method commonly used in scams (wire, crypto, gift cards)', weight: 20 },
-    { re: /account (suspended|locked|compromised|frozen|closed)/i, flag: 'Claims account is suspended or compromised to create panic', weight: 18 },
-    { re: /click here|tap here|follow this link/i, flag: 'Pushes user to click a link rather than use official channels', weight: 12 },
-    { re: /do not call|don't call|cannot call/i, flag: 'Discourages verification through official phone support', weight: 15 },
-    { re: /congratulations|you('ve| have) won|lottery|prize|inheritance/i, flag: 'Unexpected prize or windfall — classic scam pattern', weight: 20 },
-    { re: /irs|tax refund|government|customs|fedex|dhl|usps/i, flag: 'Impersonates government agency or delivery service', weight: 14 },
-    { re: /apple id|microsoft|paypal|amazon|netflix|bank of/i, flag: 'References well-known brand — verify sender independently', weight: 10 },
-    { re: /dear customer|dear user|dear member|valued customer/i, flag: 'Generic greeting instead of your actual name', weight: 8 },
+    { re: /urgent|immediately|act now|within \d+ hours?|last chance|expires today|عاجل|فوراً|خلال \d+/i, flag: 'يخلق استعجالاً مصطنعاً لمنعك من التفكير بعناية', weight: 18 },
+    { re: /verify your (identity|account)|confirm your (details|information)|update your (payment|billing)|تحقق من|تأكيد حساب/i, flag: 'يطلب التحقق من الهوية أو الحساب — تكتيك تصيد شائع', weight: 20 },
+    { re: /otp|one.?time|verification code|pin code|security code|رمز التحقق|رمز OTP/i, flag: 'يطلب رمز OTP أو رموز أمنية — لا تشاركها أبداً', weight: 25 },
+    { re: /password|credentials|login details|ssn|social security|كلمة المرور|بيانات الدخول/i, flag: 'يطلب بيانات اعتماد أو معلومات شخصية حساسة', weight: 22 },
+    { re: /wire transfer|send money|bitcoin|crypto|gift card|western union|تحويل|bitcoin/i, flag: 'طرق دفع شائعة في الاحتيال (تحويل، عملات رقمية، بطاقات هدايا)', weight: 20 },
+    { re: /account (suspended|locked|compromised|frozen|closed)|حساب.*(موقوف|معلق|مجمد)/i, flag: 'يدّعي أن حسابك موقوف أو مخترق لإثارة الذعر', weight: 18 },
+    { re: /click here|tap here|follow this link|اضغط هنا|انقر/i, flag: 'يحثك على النقر على رابط بدلاً من القنوات الرسمية', weight: 12 },
+    { re: /do not call|don't call|cannot call|لا تتصل/i, flag: 'يمنعك من التحقق عبر الهاتف الرسمي للبنك', weight: 15 },
+    { re: /congratulations|you('ve| have) won|lottery|prize|inheritance|مبروك|فزت|جائزة/i, flag: 'جائزة أو مكسب غير متوقع — نمط احتيال كلاسيكي', weight: 20 },
+    { re: /irs|tax refund|government|customs|fedex|dhl|usps|البنك|مصرف/i, flag: 'انتحال جهة حكومية أو شركة توصيل أو بنك', weight: 14 },
+    { re: /apple id|microsoft|paypal|amazon|netflix|bank of|الإنماء|alinma/i, flag: 'يشير إلى علامة تجارية معروفة — تحقق من المرسل بشكل مستقل', weight: 10 },
+    { re: /dear customer|dear user|dear member|valued customer|عزيزي العميل/i, flag: 'تحية عامة بدلاً من اسمك الحقيقي', weight: 8 },
   ];
 
   const URL_PATTERNS = [
-    { test: (url) => /bit\.ly|tinyurl|t\.co|goo\.gl|rb\.gy|short/i.test(url), flag: 'Uses URL shortener — hides true destination', weight: 15 },
+    { test: (url) => /bit\.ly|tinyurl|t\.co|goo\.gl|rb\.gy|short/i.test(url), flag: 'يستخدم اختصار روابط — يخفي الوجهة الحقيقية', weight: 15 },
     { test: (url) => {
       try {
         const host = new URL(url).hostname.replace(/^www\./, '');
         const suspicious = ['secure-', '-verify', '-login', '-update', '-support', 'account-', 'banking-'];
         return suspicious.some((s) => host.includes(s)) && !host.endsWith('.gov');
       } catch { return false; }
-    }, flag: 'Domain mimics legitimate service (secure/login/verify pattern)', weight: 22 },
+    }, flag: 'النطاق يحاكي خدمة موثوقة (secure/login/verify)', weight: 22 },
     { test: (url) => {
       try {
         const host = new URL(url).hostname;
         return /\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/.test(host);
       } catch { return false; }
-    }, flag: 'Uses raw IP address instead of trusted domain', weight: 20 },
-    { test: (url) => /[^a-z0-9.-]/.test(new URL(url).hostname) || url.includes('@'), flag: 'Suspicious URL structure or credential injection', weight: 18 },
+    }, flag: 'يستخدم عنوان IP بدلاً من نطاق موثوق', weight: 20 },
+    { test: (url) => /[^a-z0-9.-]/.test(new URL(url).hostname) || url.includes('@'), flag: 'بنية رابط مشبوهة أو حقن بيانات اعتماد', weight: 18 },
     { test: (url) => {
       try {
         const host = new URL(url).hostname;
@@ -47,10 +47,34 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
         const tld = host.split('.').slice(-2).join('.');
         return brands.some((b) => host.includes(b) && !['paypal.com', 'amazon.com', 'apple.com', 'microsoft.com', 'google.com', 'facebook.com', 'instagram.com', 'whatsapp.com'].some(( legit) => host === legit || host.endsWith('.' + legit)));
       } catch { return false; }
-    }, flag: 'Possible typosquatting — domain resembles a known brand', weight: 25 },
-    { test: (url) => !/^https:\/\//i.test(url), flag: 'Not using HTTPS — data may be transmitted insecurely', weight: 12 },
-    { test: (url) => (url.match(/\./g) || []).length > 3, flag: 'Unusually long subdomain chain — possible phishing redirect', weight: 14 },
+    }, flag: 'احتمال typosquatting — النطاق يشبه علامة تجارية معروفة', weight: 25 },
+    { test: (url) => !/^https:\/\//i.test(url), flag: 'لا يستخدم HTTPS — قد تُنقل البيانات بشكل غير آمن', weight: 12 },
+    { test: (url) => (url.match(/\./g) || []).length > 3, flag: 'سلسلة نطاقات فرعية طويلة — احتمال إعادة توجيه للتصيد', weight: 14 },
   ];
+
+  const alinmaPage = document.getElementById('alinma-page');
+  const byteshieldPanel = document.getElementById('byteshield-panel');
+  const openByteshield = document.getElementById('open-byteshield');
+  const closeByteshield = document.getElementById('close-byteshield');
+
+  openByteshield.addEventListener('click', () => {
+    alinmaPage.hidden = true;
+    byteshieldPanel.hidden = false;
+    document.body.style.overflow = 'hidden';
+  });
+
+  closeByteshield.addEventListener('click', () => {
+    byteshieldPanel.hidden = true;
+    alinmaPage.hidden = false;
+    document.body.style.overflow = '';
+  });
+
+  document.querySelectorAll('.service-card:not(.service-card--byteshield)').forEach((card) => {
+    card.addEventListener('click', (e) => {
+      e.preventDefault();
+      showToast('خدمة تجريبية — ByteShield متاح للفحص الأمني');
+    });
+  });
 
   let activeTab = 'text';
   let screenshotFile = null;
@@ -90,7 +114,7 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
   btnSample.addEventListener('click', () => {
     switchTab('text');
     document.getElementById('input-text').value = SAMPLE_SCAM;
-    showToast('Sample scam loaded — run analysis to see results');
+    showToast('تم تحميل رسالة احتيال نموذجية — شغّل التحليل');
   });
 
   uploadTrigger.addEventListener('click', () => inputScreenshot.click());
@@ -114,7 +138,7 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
 
   function setScreenshot(file) {
     if (!file.type.startsWith('image/')) {
-      showToast('Please upload an image file');
+      showToast('يرجى رفع ملف صورة');
       return;
     }
     screenshotFile = file;
@@ -173,7 +197,7 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     });
 
     if (text.length > 0 && text.length < 40 && /click|verify|urgent/i.test(text)) {
-      flags.push('Very short message with high-pressure language');
+      flags.push('رسالة قصيرة جداً بلغة ضاغطة');
       score += 10;
     }
 
@@ -185,13 +209,13 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     let score = 15;
 
     if (!url) {
-      return { flags: ['No URL provided'], score: 0, invalid: true };
+      return { flags: ['لم يُقدَّم رابط'], score: 0, invalid: true };
     }
 
     try {
       new URL(url.startsWith('http') ? url : `https://${url}`);
     } catch {
-      return { flags: ['Invalid or malformed URL'], score: 85, invalid: false };
+      return { flags: ['رابط غير صالح أو مشوّه'], score: 85, invalid: false };
     }
 
     const fullUrl = url.startsWith('http') ? url : `https://${url}`;
@@ -204,7 +228,7 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     });
 
     if (flags.length === 0) {
-      flags.push('No obvious URL red flags detected — still verify independently');
+      flags.push('لم تُكتشف مؤشرات خطر واضحة — تحقق بشكل مستقل');
       score = 22;
     }
 
@@ -213,64 +237,65 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
 
   function analyzeScreenshot() {
     const flags = [
-      'Screenshot uploaded — text extracted via OCR in production',
-      'Demo mode: assuming conversation contains payment request',
-      'Unknown sender identity cannot be verified from image alone',
-      'Urgency language commonly found in scam screenshots',
+      'تم رفع اللقطة — استخراج النص عبر OCR في الإنتاج',
+      'وضع تجريبي: افتراض وجود طلب دفع في المحادثة',
+      'لا يمكن التحقق من هوية المرسل من الصورة وحدها',
+      'لغة استعجال شائعة في لقطات الاحتيال',
     ];
     return {
       flags,
       score: 72,
-      explanation: 'In production, ByteShield would use vision AI to read the screenshot, identify the messaging platform, extract all text, and cross-reference known scam patterns. This demo simulates a medium-high risk result for uploaded images.',
+      explanation: 'في الإنتاج، يستخدم ByteShield ذكاءً بصرياً لقراءة اللقطة وتحديد منصة المراسلة واستخراج النص ومقارنته بأنماط الاحتيال المعروفة. هذا العرض التجريبي يحاكي نتيجة خطر متوسط إلى مرتفع.',
     };
   }
 
   function scoreToLevel(score) {
-    if (score < 35) return { level: 'Low', class: 'low', verdict: 'Likely safe, but always verify independently' };
-    if (score < 65) return { level: 'Medium', class: 'medium', verdict: 'Suspicious — proceed with caution' };
-    return { level: 'High', class: 'high', verdict: 'Likely scam or phishing — do not interact' };
+    if (score < 35) return { level: 'منخفض', class: 'low', verdict: 'يبدو آمناً نسبياً — تحقق دائماً بشكل مستقل' };
+    if (score < 65) return { level: 'متوسط', class: 'medium', verdict: 'مشبوه — توخَّ الحذر قبل أي إجراء' };
+    return { level: 'مرتفع', class: 'high', verdict: 'احتيال أو تصيد محتمل — لا تتفاعل' };
   }
 
   function getRecommendations(score, type) {
     const recs = [];
     if (score >= 65) {
-      recs.push('Do not click any links or reply to this message');
-      recs.push('Do not share passwords, OTP codes, or payment details');
-      recs.push('Contact the organization directly using their official website or app');
-      recs.push('Report the message to your bank, carrier, or local cybercrime authority');
+      recs.push('لا تنقر على أي روابط ولا ترد على الرسالة');
+      recs.push('لا تشارك كلمات المرور أو رموز OTP أو بيانات الدفع');
+      recs.push('تواصل مع الجهة مباشرة عبر موقعها أو تطبيق الإنماء الرسمي');
+      recs.push('أبلغ البنك أو الجهات المختصة بالجرائم الإلكترونية');
     } else if (score >= 35) {
-      recs.push('Verify the sender through an official channel before taking action');
-      recs.push('Hover over links to inspect the real destination (on desktop)');
-      recs.push('Search for similar scam reports online');
-      recs.push('When in doubt, ignore the message and call official support');
+      recs.push('تحقق من المرسل عبر قناة رسمية قبل أي إجراء');
+      recs.push('افحص الرابط قبل النقر للتأكد من الوجهة الحقيقية');
+      recs.push('ابحث عن تقارير مشابهة للاحتيال');
+      recs.push('عند الشك، تجاهل الرسالة واتصل بالدعم الرسمي');
     } else {
-      recs.push('Content appears relatively safe based on pattern analysis');
-      recs.push('Still verify sender identity if anything feels off');
-      recs.push('Never share sensitive codes or credentials unprompted');
+      recs.push('المحتوى يبدو آمناً نسبياً وفق تحليل الأنماط');
+      recs.push('تحقق من هوية المرسل إذا شعرت بأي شيء غريب');
+      recs.push('لا تشارك الرموز أو البيانات الحساسة أبداً');
     }
     if (type === 'URL') {
-      recs.unshift('Type the official website address manually instead of clicking the link');
+      recs.unshift('اكتب عنوان الموقع الرسمي يدوياً بدلاً من النقر على الرابط');
     }
     if (type === 'Screenshot') {
-      recs.unshift('Ask the sender to verify their identity through a known contact method');
+      recs.unshift('اطلب من المرسل التحقق من هويته عبر وسيلة اتصال معروفة');
     }
     return recs;
   }
 
   function buildExplanation(text, flags, score, type) {
     const { level } = scoreToLevel(score);
+    const typeAr = { Message: 'رسالة', Email: 'بريد', URL: 'رابط', Screenshot: 'لقطة' }[type] || type;
     const parts = [
-      `ByteShield analyzed this ${type.toLowerCase()} and assigned a ${level.toLowerCase()} risk score of ${score}/100.`,
+      `حلل ByteShield هذا ${typeAr} وأعطى درجة خطر ${level} (${score}/100).`,
     ];
     if (flags.length > 0) {
-      parts.push(`We identified ${flags.length} concern${flags.length > 1 ? 's' : ''} including ${flags[0].toLowerCase()}.`);
+      parts.push(`رصد ${flags.length} مؤشر${flags.length > 1 ? 'ات' : ''}، منها: ${flags[0]}.`);
     }
     if (score >= 65) {
-      parts.push('Multiple indicators match known financial fraud and phishing campaigns. The combination of urgency, credential requests, and suspicious links is a strong scam signal.');
+      parts.push('عدة مؤشرات تطابق حملات احتيال مالي وتصيد معروفة. الجمع بين الاستعجال وطلب البيانات والروابط المشبوهة إشارة قوية على احتيال.');
     } else if (score >= 35) {
-      parts.push('Some patterns resemble social engineering tactics. Legitimate organizations rarely pressure you to act immediately via unsolicited messages.');
+      parts.push('بعض الأنماط تشبه الهندسة الاجتماعية. الجهات الموثوقة نادراً ما تضغط عليك للتصرف فوراً عبر رسائل غير مطلوبة.');
     } else {
-      parts.push('No major phishing patterns were detected, but social engineering can be subtle. Trust your instincts if something feels wrong.');
+      parts.push('لم تُرصد أنماط تصيد رئيسية، لكن الهندسة الاجتماعية قد تكون خفية. ثق بحدسك إذا شعرت بأي شيء غريب.');
     }
     return parts.join(' ');
   }
@@ -280,16 +305,16 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
 
     if (activeTab === 'screenshot') {
       if (!input.hasImage) {
-        showToast('Please upload a screenshot first');
+        showToast('يرجى رفع لقطة شاشة أولاً');
         return;
       }
     } else if (!input.text) {
-      showToast('Please enter content to analyze');
+      showToast('يرجى إدخال محتوى للتحليل');
       return;
     }
 
     btnScan.classList.add('scanning');
-    btnScan.textContent = 'Analyzing…';
+    btnScan.textContent = 'جاري التحليل…';
 
     await delay(1400);
 
@@ -303,9 +328,9 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     }
 
     if (analysis.invalid) {
-      showToast('Please enter content to analyze');
+      showToast('يرجى إدخال محتوى للتحليل');
       btnScan.classList.remove('scanning');
-      btnScan.innerHTML = '<span class="btn__icon" aria-hidden="true">🛡️</span> Run security analysis';
+      btnScan.textContent = 'تشغيل التحليل الأمني';
       return;
     }
 
@@ -316,14 +341,14 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     renderResults(analysis.score, level, levelClass, verdict, analysis.flags, recommendations, explanation);
 
     btnScan.classList.remove('scanning');
-    btnScan.innerHTML = '<span class="btn__icon" aria-hidden="true">🛡️</span> Run security analysis';
+    btnScan.textContent = 'تشغيل التحليل الأمني';
   }
 
   function renderResults(score, level, levelClass, verdict, flags, recommendations, explanation) {
     resultsPlaceholder.hidden = true;
     results.hidden = false;
 
-    document.getElementById('results-time').textContent = new Date().toLocaleString();
+    document.getElementById('results-time').textContent = new Date().toLocaleString('ar-SA');
     document.getElementById('risk-score').textContent = score;
 
     const ring = document.getElementById('risk-ring');
@@ -331,7 +356,7 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     ring.style.strokeDashoffset = RING_CIRCUMFERENCE - (score / 100) * RING_CIRCUMFERENCE;
 
     const badge = document.getElementById('risk-level');
-    badge.textContent = level + ' risk';
+    badge.textContent = 'خطر ' + level;
     badge.className = 'risk-badge risk-badge--' + levelClass;
 
     document.getElementById('risk-verdict').textContent = verdict;
