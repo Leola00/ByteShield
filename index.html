@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0a0e17" />
+  <meta name="description" content="ByteShield – AI-powered fraud and phishing detection for messages, emails, URLs, and screenshots." />
+  <title>ByteShield – AI Fraud & Phishing Detection</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+</head>
+<body>
+  <div class="app">
+    <nav class="nav">
+      <a href="#" class="nav__brand">
+        <span class="nav__logo" aria-hidden="true">
+          <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M16 2L4 8v8c0 7.2 5.1 13.9 12 15 6.9-1.1 12-7.8 12-15V8L16 2z" stroke="currentColor" stroke-width="2" fill="none"/>
+            <path d="M12 16l3 3 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </span>
+        ByteShield
+      </a>
+      <div class="nav__links">
+        <a href="#scan">Scan</a>
+        <a href="#how">How it works</a>
+        <a href="#features">Features</a>
+      </div>
+    </nav>
+
+    <header class="hero">
+      <div class="hero__badge">AI-Powered Security</div>
+      <h1 class="hero__title">Detect fraud before it finds you</h1>
+      <p class="hero__desc">
+        ByteShield analyzes text messages, emails, URLs, and conversation screenshots
+        to spot phishing and financial scams — with a clear risk score and actionable advice.
+      </p>
+      <a href="#scan" class="btn btn--primary">Analyze something now</a>
+    </header>
+
+    <section id="scan" class="scan">
+      <div class="scan__panel">
+        <h2 class="section-title">Security scan</h2>
+        <p class="section-desc">Paste content or upload a screenshot. ByteShield will assess the threat level.</p>
+
+        <div class="tabs" role="tablist" aria-label="Input type">
+          <button class="tab tab--active" role="tab" aria-selected="true" data-tab="text">Message</button>
+          <button class="tab" role="tab" aria-selected="false" data-tab="email">Email</button>
+          <button class="tab" role="tab" aria-selected="false" data-tab="url">URL</button>
+          <button class="tab" role="tab" aria-selected="false" data-tab="screenshot">Screenshot</button>
+        </div>
+
+        <div class="tab-panels">
+          <div class="tab-panel tab-panel--active" data-panel="text">
+            <label class="field-label" for="input-text">Suspicious message</label>
+            <textarea id="input-text" class="field-input" rows="6" placeholder="Paste a text message or chat here…"></textarea>
+          </div>
+          <div class="tab-panel" data-panel="email" hidden>
+            <label class="field-label" for="input-email-subject">Subject</label>
+            <input id="input-email-subject" class="field-input field-input--single" type="text" placeholder="Email subject line" />
+            <label class="field-label" for="input-email-body">Email body</label>
+            <textarea id="input-email-body" class="field-input" rows="5" placeholder="Paste the full email content…"></textarea>
+          </div>
+          <div class="tab-panel" data-panel="url" hidden>
+            <label class="field-label" for="input-url">Suspicious link</label>
+            <input id="input-url" class="field-input field-input--single field-input--mono" type="url" placeholder="https://example.com/suspicious-link" />
+          </div>
+          <div class="tab-panel" data-panel="screenshot" hidden>
+            <label class="field-label">Conversation screenshot</label>
+            <div class="upload-zone" id="upload-zone">
+              <input type="file" id="input-screenshot" accept="image/*" hidden />
+              <div class="upload-zone__empty" id="upload-empty">
+                <span class="upload-zone__icon" aria-hidden="true">📷</span>
+                <p>Drop an image here or <button type="button" class="link-btn" id="upload-trigger">browse files</button></p>
+                <p class="upload-zone__hint">PNG, JPG up to 10 MB</p>
+              </div>
+              <div class="upload-zone__preview" id="upload-preview" hidden>
+                <img id="preview-img" alt="Uploaded screenshot preview" />
+                <button type="button" class="upload-zone__remove" id="upload-remove" aria-label="Remove image">×</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="scan__actions">
+          <button type="button" class="btn btn--primary btn--scan" id="btn-scan">
+            <span class="btn__icon" aria-hidden="true">🛡️</span>
+            Run security analysis
+          </button>
+          <button type="button" class="btn btn--ghost" id="btn-sample">Try sample scam</button>
+        </div>
+      </div>
+
+      <div class="results" id="results" hidden>
+        <div class="results__header">
+          <h2 class="section-title">Analysis results</h2>
+          <span class="results__timestamp" id="results-time"></span>
+        </div>
+
+        <div class="risk-card" id="risk-card">
+          <div class="risk-gauge">
+            <svg class="risk-gauge__ring" viewBox="0 0 120 120">
+              <circle class="risk-gauge__bg" cx="60" cy="60" r="52" />
+              <circle class="risk-gauge__fill" id="risk-ring" cx="60" cy="60" r="52" />
+            </svg>
+            <div class="risk-gauge__score">
+              <span class="risk-gauge__number" id="risk-score">—</span>
+              <span class="risk-gauge__label">Risk score</span>
+            </div>
+          </div>
+          <div class="risk-summary">
+            <span class="risk-badge" id="risk-level">—</span>
+            <p class="risk-verdict" id="risk-verdict">Run a scan to see your threat assessment.</p>
+          </div>
+        </div>
+
+        <div class="results__grid">
+          <div class="result-block">
+            <h3 class="result-block__title">
+              <span aria-hidden="true">⚠️</span> Red flags detected
+            </h3>
+            <ul class="flag-list" id="flag-list"></ul>
+          </div>
+          <div class="result-block">
+            <h3 class="result-block__title">
+              <span aria-hidden="true">✅</span> Recommendations
+            </h3>
+            <ul class="rec-list" id="rec-list"></ul>
+          </div>
+        </div>
+
+        <details class="ai-explanation">
+          <summary>AI explanation</summary>
+          <p id="ai-explanation"></p>
+        </details>
+      </div>
+
+      <div class="results-placeholder" id="results-placeholder">
+        <div class="results-placeholder__icon" aria-hidden="true">🛡️</div>
+        <p>Your analysis will appear here</p>
+        <p class="results-placeholder__hint">Submit content above to get a risk score and security recommendations.</p>
+      </div>
+    </section>
+
+    <section id="how" class="how">
+      <h2 class="section-title section-title--center">How ByteShield works</h2>
+      <div class="steps">
+        <article class="step">
+          <span class="step__num">1</span>
+          <h3>Submit content</h3>
+          <p>Paste a message, email, URL, or upload a screenshot of a suspicious conversation.</p>
+        </article>
+        <article class="step">
+          <span class="step__num">2</span>
+          <h3>AI analysis</h3>
+          <p>Our engine examines language patterns, sender claims, link behavior, and visual context.</p>
+        </article>
+        <article class="step">
+          <span class="step__num">3</span>
+          <h3>Get protected</h3>
+          <p>Receive a risk score, clear explanations, and step-by-step guidance to stay safe.</p>
+        </article>
+      </div>
+    </section>
+
+    <section id="features" class="features">
+      <h2 class="section-title section-title--center">What we detect</h2>
+      <div class="feature-grid">
+        <article class="feature-card">
+          <span class="feature-card__icon">💬</span>
+          <h3>Smishing &amp; texts</h3>
+          <p>Urgent payment requests, fake delivery alerts, and impersonation in SMS and chat apps.</p>
+        </article>
+        <article class="feature-card">
+          <span class="feature-card__icon">📧</span>
+          <h3>Phishing emails</h3>
+          <p>Spoofed senders, credential harvesting, and fake invoices or bank notifications.</p>
+        </article>
+        <article class="feature-card">
+          <span class="feature-card__icon">🔗</span>
+          <h3>Malicious URLs</h3>
+          <p>Typosquatting, shortened links, and domains mimicking trusted brands.</p>
+        </article>
+        <article class="feature-card">
+          <span class="feature-card__icon">🖼️</span>
+          <h3>Screenshot analysis</h3>
+          <p>Extract and evaluate conversation context from images using vision AI.</p>
+        </article>
+      </div>
+    </section>
+
+    <footer class="footer">
+      <p><strong>ByteShield</strong> · AI-powered fraud detection</p>
+      <p class="footer__note">Demo preview — analysis uses local heuristics. Connect a live AI backend for production.</p>
+    </footer>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
