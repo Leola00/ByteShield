@@ -315,17 +315,19 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
 
     btnScan.classList.add('scanning');
     btnScan.textContent = 'جاري التحليل…';
-
-    await delay(1400);
-
-    let analysis;
-    if (activeTab === 'url') {
-      analysis = analyzeUrl(input.text);
-    } else if (activeTab === 'screenshot') {
-      analysis = analyzeScreenshot();
-    } else {
-      analysis = analyzeText(input.text);
-    }
+    const response = await fetch("http://localhost:3000/analyze", {
+      method: "POST",
+      headers: {
+          "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+          text: input.text
+      })
+  });
+  
+  const data = await response.json();
+  
+  console.log(data);
 
     if (analysis.invalid) {
       showToast('يرجى إدخال محتوى للتحليل');
