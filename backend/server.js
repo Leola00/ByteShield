@@ -4,6 +4,8 @@ const path = require("path");
 const { spawn } = require("child_process");
 const express = require("express");
 const cors = require("cors");
+const multer = require("multer");
+const pdfParse = require("pdf-parse");
 const OpenAI = require("openai");
 
 const app = express();
@@ -58,6 +60,31 @@ riskBreakdown values are 0-100 risk scores per category (higher = more dangerous
 actionChecklist: 4-6 concrete steps. If safe, use positive cautions.
 detectedBanks: Saudi banks if impersonated (Samba, SNB, Al Rajhi, Riyad Bank, Alinma, etc.) or empty array.`;
 
+const VISION_EXTRA = `You are analyzing visual content: a screenshot, photo, or scanned PDF page.
+
+Read all visible text carefully (Arabic and English). Note logos, bank names, messaging apps (WhatsApp, SMS, email), URLs, phone numbers, urgency language, OTP/password requests, and fake official branding.
+Evaluate whether the content is legitimate or a fraud/phishing attempt.`;
+
+const ALLOWED_FILE_TYPES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/gif",
+  "application/pdf",
+]);
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (ALLOWED_FILE_TYPES.has(file.mimetype)) {
+      cb(null, true);
+      return;
+    }
+    cb(new Error("Unsupported file type. Upload an image (JPG, PNG, WebP, GIF) or PDF."));
+  },
+});
+
 const CHAT_PROMPT = `You are ByteShield AI, a professional Arabic-speaking cybersecurity assistant in Saudi Arabia.
 
 You have context from the user's fraud analysis. Answer follow-up questions clearly and practically.
@@ -79,6 +106,117 @@ Saudi resources you may cite:
 const PYTHON_BIN = process.env.PYTHON_BIN || "py";
 const PYTHON_ARGS = process.env.PYTHON_ARGS ? process.env.PYTHON_ARGS.split(" ") : ["-3"];
 const ML_PREDICT_SCRIPT = path.join(__dirname, "ml", "predict_url.py");
+
+function getOpenAiModel() {
+  return process.env.OPENAI_MODEL || "gpt-4o-mini";
+}
+
+async function callOpenAiJson(systemPrompt, userContent) {
+  const completion = await openai.chat.completions.create({
+    model: getOpenAiModel(),
+    temperature: 0,
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userContent },
+    ],
+    response_format: { type: "json_object" },
+  });
+
+  const content = completion.choices[0]?.message?.content;
+  if (!content) {
+    throw new Error("No response from OpenAI");
+  }
+
+  return JSON.parse(content);
+}
+
+async function callOpenAiVision(userContentParts) {
+  const completion = await openai.chat.completions.create({
+    model: process.env.OPENAI_VISION_MODEL || getOpenAiModel(),
+    temperature: 0,
+    messages: [
+      { role: "system", content: `${ANALYZE_PROMPT}\n\n${VISION_EXTRA}` },
+      { role: "user", content: userContentParts },
+    ],
+    response_format: { type: "json_object" },
+  });
+
+  const content = completion.choices[0]?.message?.content;
+  if (!content) {
+    throw new Error("No response from OpenAI");
+  }
+
+  return JSON.parse(content);
+}
+
+async function pdfPagesToImages(buffer, maxPages = 3) {
+  const { pdf } = await import("pdf-to-img");
+  const doc = await pdf(buffer, { scale: 2 });
+  const images = [];
+
+  for await (const page of doc) {
+    images.push({
+      mime: "image/png",
+      base64: Buffer.from(page).toString("base64"),
+    });
+    if (images.length >= maxPages) {
+      break;
+    }
+  }
+
+  return images;
+}
+
+async function analyzePdfBuffer(buffer) {
+  const data = await pdfParse(buffer);
+  const text = String(data.text || "").replace(/\s+/g, " ").trim();
+
+  if (text.length >= 80) {
+    const excerpt = text.slice(0, 12000);
+    return callOpenAiJson(
+      ANALYZE_PROMPT,
+      `[محتوى مستخرج من ملف PDF — ${data.numpages || "?"} صفحة]\n\n${excerpt}`
+    );
+  }
+
+  const pageImages = await pdfPagesToImages(buffer);
+  if (!pageImages.length) {
+    throw new Error("Could not read PDF pages");
+  }
+
+  const parts = [
+    {
+      type: "text",
+      text: "This is a scanned PDF. Analyze every page image for financial fraud, phishing, and social engineering. Read all visible Arabic and English text.",
+    },
+    ...pageImages.map((img) => ({
+      type: "image_url",
+      image_url: {
+        url: `data:${img.mime};base64,${img.base64}`,
+        detail: "high",
+      },
+    })),
+  ];
+
+  return callOpenAiVision(parts);
+}
+
+async function analyzeImageBuffer(buffer, mimeType) {
+  const base64 = buffer.toString("base64");
+  return callOpenAiVision([
+    {
+      type: "text",
+      text: "Analyze this screenshot or photo for financial fraud, phishing, and social engineering. Read all visible text and UI elements.",
+    },
+    {
+      type: "image_url",
+      image_url: {
+        url: `data:${mimeType};base64,${base64}`,
+        detail: "high",
+      },
+    },
+  ]);
+}
 
 function runUrlMlPrediction(url) {
   return new Promise((resolve, reject) => {
@@ -252,24 +390,11 @@ app.post("/analyze", async (req, res) => {
       });
     }
 
-    const completion = await openai.chat.completions.create({
-      model: process.env.OPENAI_MODEL || "gpt-4o-mini",
-      temperature: 0,
-      messages: [
-        { role: "system", content: ANALYZE_PROMPT },
-        { role: "user", content: text },
-      ],
-      response_format: { type: "json_object" },
-    });
-
-    const content = completion.choices[0]?.message?.content;
-    if (!content) {
-      throw new Error("No response from OpenAI");
-    }
+    const data = await callOpenAiJson(ANALYZE_PROMPT, text);
 
     res.json({
       success: true,
-      data: JSON.parse(content),
+      data,
     });
   } catch (error) {
     console.error("OpenAI Error:", error);
@@ -279,6 +404,78 @@ app.post("/analyze", async (req, res) => {
       error: error.message,
     });
   }
+});
+
+app.post("/analyze-file", upload.single("file"), async (req, res) => {
+  try {
+    if (!openai) {
+      return res.status(503).json({
+        success: false,
+        error: "OpenAI is not configured. Set OPENAI_API_KEY in backend/.env",
+      });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        error: "No file uploaded",
+      });
+    }
+
+    const { buffer, mimetype, originalname } = req.file;
+    let data;
+
+    if (mimetype === "application/pdf") {
+      data = await analyzePdfBuffer(buffer);
+    } else if (mimetype.startsWith("image/")) {
+      data = await analyzeImageBuffer(buffer, mimetype);
+    } else {
+      return res.status(400).json({
+        success: false,
+        error: "Unsupported file type",
+      });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        ...data,
+        fileName: originalname,
+        fileType: mimetype,
+      },
+    });
+  } catch (error) {
+    console.error("File Analysis Error:", error);
+
+    const message = error.message || "File analysis failed";
+    const userMessage =
+      message.includes("Could not read PDF") || message.includes("PDF")
+        ? "لم نتمكن من قراءة PDF — جرّب رفع لقطة شاشة للمحتوى"
+        : message;
+
+    res.status(500).json({
+      success: false,
+      error: userMessage,
+    });
+  }
+});
+
+app.use((err, _req, res, next) => {
+  if (err instanceof multer.MulterError) {
+    if (err.code === "LIMIT_FILE_SIZE") {
+      return res.status(400).json({
+        success: false,
+        error: "File too large — maximum size is 10 MB",
+      });
+    }
+    return res.status(400).json({ success: false, error: err.message });
+  }
+
+  if (err) {
+    return res.status(400).json({ success: false, error: err.message });
+  }
+
+  return next();
 });
 
 app.post("/chat", async (req, res) => {

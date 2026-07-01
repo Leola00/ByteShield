@@ -157,13 +157,17 @@
               </div>
               <div class="tab-panel" data-panel="screenshot" hidden>
                 <div class="upload-zone" id="upload-zone">
-                  <input type="file" id="input-screenshot" accept="image/*" hidden />
+                  <input type="file" id="input-screenshot" accept="image/jpeg,image/png,image/webp,image/gif,application/pdf" hidden />
                   <div class="upload-zone__empty" id="upload-empty">
                     <span class="upload-zone__icon" aria-hidden="true">📷</span>
-                    <p>أسقط صورة هنا أو <button type="button" class="link-btn" id="upload-trigger">اختر ملف</button></p>
+                    <p>أسقط صورة أو PDF هنا أو <button type="button" class="link-btn" id="upload-trigger">اختر ملف</button></p>
                   </div>
                   <div class="upload-zone__preview" id="upload-preview" hidden>
                     <img id="preview-img" alt="معاينة اللقطة" />
+                    <div class="upload-zone__file" id="upload-file-info" hidden>
+                      <span class="upload-zone__icon" aria-hidden="true">📄</span>
+                      <span id="upload-file-name"></span>
+                    </div>
                     <button type="button" class="upload-zone__remove" id="upload-remove" aria-label="إزالة">×</button>
                   </div>
                 </div>

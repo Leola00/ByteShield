@@ -32,6 +32,10 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     return getApiUrl('/analyze');
   }
 
+  function getAnalyzeFileUrl() {
+    return getApiUrl('/analyze-file');
+  }
+
   function getPredictUrlEndpoint() {
     return getApiUrl('/predict-url');
   }
@@ -210,6 +214,8 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
   const uploadEmpty = document.getElementById('upload-empty');
   const uploadPreview = document.getElementById('upload-preview');
   const previewImg = document.getElementById('preview-img');
+  const uploadFileInfo = document.getElementById('upload-file-info');
+  const uploadFileName = document.getElementById('upload-file-name');
   const uploadRemove = document.getElementById('upload-remove');
   const btnAskAi = document.getElementById('btn-ask-ai');
   const btnContactSupport = document.getElementById('btn-contact-support');
@@ -268,12 +274,32 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
   }
 
   function setScreenshot(file) {
-    if (!file.type.startsWith('image/')) {
-      showToast('يرجى رفع ملف صورة');
+    const isImage = file.type.startsWith('image/');
+    const isPdf = file.type === 'application/pdf';
+
+    if (!isImage && !isPdf) {
+      showToast('يرجى رفع صورة (JPG, PNG) أو ملف PDF');
       return;
     }
+
+    if (file.size > 10 * 1024 * 1024) {
+      showToast('الملف كبير جداً — الحد الأقصى 10 MB');
+      return;
+    }
+
     screenshotFile = file;
-    previewImg.src = URL.createObjectURL(file);
+
+    if (isImage) {
+      previewImg.src = URL.createObjectURL(file);
+      previewImg.hidden = false;
+      if (uploadFileInfo) uploadFileInfo.hidden = true;
+    } else {
+      previewImg.src = '';
+      previewImg.hidden = true;
+      if (uploadFileName) uploadFileName.textContent = file.name;
+      if (uploadFileInfo) uploadFileInfo.hidden = false;
+    }
+
     uploadEmpty.hidden = true;
     uploadPreview.hidden = false;
   }
@@ -284,6 +310,9 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     uploadEmpty.hidden = false;
     uploadPreview.hidden = true;
     previewImg.src = '';
+    previewImg.hidden = false;
+    if (uploadFileInfo) uploadFileInfo.hidden = true;
+    if (uploadFileName) uploadFileName.textContent = '';
   }
 
   btnScan.addEventListener('click', runAnalysis);
@@ -313,7 +342,11 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
       case 'url':
         return { type: 'URL', text: document.getElementById('input-url').value.trim() };
       case 'screenshot':
-        return { type: 'Screenshot', text: '', hasImage: !!screenshotFile };
+        return {
+          type: 'Screenshot',
+          text: screenshotFile ? `[ملف: ${screenshotFile.name}]` : '',
+          hasImage: !!screenshotFile,
+        };
       default:
         return { type: 'Unknown', text: '' };
     }
@@ -491,7 +524,7 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
 
     if (activeTab === 'screenshot') {
       if (!input.hasImage) {
-        showToast('يرجى رفع لقطة شاشة أولاً');
+        showToast('يرجى رفع صورة أو ملف PDF أولاً');
         return;
       }
     } else if (!input.text) {
@@ -502,12 +535,49 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     btnScan.classList.add('scanning');
     btnScan.textContent = activeTab === 'url'
       ? 'جاري تحليل الرابط… (قد يستغرق 30 ث)'
-      : 'جاري التحليل…';
+      : activeTab === 'screenshot'
+        ? 'جاري تحليل الملف… (قد يستغرق دقيقة)'
+        : 'جاري التحليل…';
 
     try {
       if (activeTab === 'screenshot') {
-        const analysis = analyzeScreenshot();
-        const report = buildScreenshotReport(analysis, input.text);
+        const formData = new FormData();
+        formData.append('file', screenshotFile);
+
+        let response;
+        try {
+          response = await fetch(getAnalyzeFileUrl(), {
+            method: 'POST',
+            body: formData,
+          });
+        } catch {
+          showToast('تعذر الاتصال بالخادم — افتح http://localhost:3000');
+          return;
+        }
+
+        let result;
+        try {
+          result = await response.json();
+        } catch {
+          showToast('تعذر قراءة رد الخادم');
+          return;
+        }
+
+        if (!response.ok || !result.success) {
+          const message = result.error || 'فشل تحليل الملف';
+          if (message.includes('429') || message.toLowerCase().includes('quota')) {
+            showToast('تم تجاوز حد OpenAI — انتظر دقيقة وحاول مجدداً');
+          } else if (isOpenAiKeyError(message)) {
+            showToast('مفتاح OpenAI غير صالح — حدّث backend/.env');
+          } else {
+            showToast(message);
+          }
+          return;
+        }
+
+        const ai = result.data;
+        const score = Number(ai.riskScore) || 0;
+        const report = normalizeAiReport(ai, score, input.text);
         lastAnalysisContext = buildChatContext(input.text, report);
         renderResults(report);
         return;
