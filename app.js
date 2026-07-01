@@ -317,6 +317,15 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     btnScan.textContent = 'جاري التحليل…';
 
     try {
+      if (activeTab === 'screenshot') {
+        const analysis = analyzeScreenshot();
+        const { level, class: levelClass, verdict } = scoreToLevel(analysis.score);
+        const recommendations = getRecommendations(analysis.score, input.type);
+        const explanation = analysis.explanation || buildExplanation(input.text, analysis.flags, analysis.score, input.type);
+        renderResults(analysis.score, level, levelClass, verdict, analysis.flags, recommendations, explanation);
+        return;
+      }
+
       const response = await fetch('http://localhost:3000/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
