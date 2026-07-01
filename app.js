@@ -7,7 +7,121 @@ Click here to confirm: http://secure-bank-verify.xyz/login
 
 Reply with your OTP code if you received one. Do NOT call the bank — this is faster.`;
 
-  const RING_CIRCUMFERENCE = 327;
+  const RING_MAX = 100;
+
+  const GAUGE_COLORS = { low: '#059669', medium: '#d97706', high: '#dc2626' };
+
+  const EVAL_METRICS = [
+    { key: 'senderAuthenticity', label: 'مصدر الرسالة' },
+    { key: 'languageAnalysis', label: 'محتوى الرسالة' },
+    { key: 'linkSafety', label: 'الروابط' },
+    { key: 'financialFraudIndicators', label: 'المرفقات' },
+  ];
+
+  let lastAnalysisContext = '';
+  let chatHistory = [];
+
+  function getApiUrl(path) {
+    const { protocol, hostname, port } = window.location;
+    if (port === '3000') return path;
+    const host = hostname || 'localhost';
+    return `http://${host}:3000${path}`;
+  }
+
+  function getAnalyzeUrl() {
+    return getApiUrl('/analyze');
+  }
+
+  function getScoreTier(score) {
+    if (score <= 30) {
+      return {
+        levelClass: 'low',
+        statusEn: 'Safe',
+        statusAr: 'آمن',
+        tierLabel: 'منخفض المخاطر',
+        badge: 'آمن',
+        defaultMessage: '✅ تبدو هذه الرسالة آمنة',
+      };
+    }
+    if (score <= 60) {
+      return {
+        levelClass: 'medium',
+        statusEn: 'Suspicious',
+        statusAr: 'مشبوه',
+        tierLabel: 'مشبوه',
+        badge: 'مشبوه',
+        defaultMessage: '⚠️ هذه الرسالة مشبوهة',
+      };
+    }
+    return {
+      levelClass: 'high',
+      statusEn: 'High Risk',
+      statusAr: 'خطر مرتفع',
+      tierLabel: 'خطر مرتفع',
+      badge: 'خطر مرتفع',
+      defaultMessage: '🚨 احتمال عالٍ للتصيد أو الاحتيال',
+    };
+  }
+
+  function getDefaultActions(score) {
+    if (score <= 30) {
+      return [
+        'لا يلزم إجراء فوري',
+        'ابقَ حذراً دائماً',
+        'تحقق من أي طلب غير متوقع عبر القنوات الرسمية',
+      ];
+    }
+    if (score <= 60) {
+      return [
+        'لا تنقر على أي روابط حتى تتأكد',
+        'تحقق من المرسل عبر القنوات الرسمية',
+        'لا تشارك بياناتك البنكية أو رموز OTP',
+        'ابحث عن تقارير مشابهة للاحتيال',
+      ];
+    }
+    return [
+      'لا تنقر على الرابط',
+      'لا تشارك بياناتك البنكية أو كلمات المرور',
+      'تحقق من المرسل عبر القنوات الرسمية',
+      'احظر المرسل إن أمكن',
+      'أبلغ عن الرسالة للجهات المختصة',
+      'احذف الرسالة إذا تأكدت أنها احتيال',
+    ];
+  }
+
+  function getDefaultTips(threatType) {
+    const tips = {
+      phishing: ['لا تثق بالروابط في الرسائل — اكتب عنوان الموقع يدوياً', 'البنوك لا تطلب OTP عبر الرسائل', 'تحقق من هوية المرسل قبل أي إجراء'],
+      banking_fraud: ['استخدم فقط التطبيق أو الموقع الرسمي للبنك', 'لا تشارك رمز التحقق مع أي شخص', 'اتصل بالبنك عبر الرقم الرسمي'],
+      investment_scam: ['العوائد المضمونة غالباً احتيال', 'تحقق من تراخيص الشركات عبر SAMA', 'لا تحوّل أموالاً لجهات غير موثوقة'],
+      delivery_scam: ['تحقق من رقم التتبع عبر موقع الشركة الرسمي', 'لا تدفع رسوماً إضافية عبر روابط مشبوهة', 'تواصل مع شركة الشحن مباشرة'],
+      social_engineering: ['لا تتخذ قرارات تحت الضغط', 'تحقق من الهوية عبر قناة ثانية', 'الجهات الرسمية لا تهدد بإغلاق الحساب فوراً'],
+    };
+    return tips[threatType] || tips.phishing;
+  }
+
+  const SUPPORT_CONTACTS = [
+    { section: 'الجهات الحكومية', items: [
+      { name: 'الهيئة الوطنية للأمن السيبراني (NCA)', number: 'ncsc.gov.sa', link: 'https://ncsc.gov.sa', desc: 'التوعية والإرشادات الأمنية' },
+      { name: 'البنك المركزي السعودي (SAMA) — حماية العملاء', number: '8001256666', tel: '8001256666', desc: 'التوعية بالاحتيال المالي وحقوق العملاء' },
+      { name: 'منصة الإبلاغ عن الاحتيال المالي (سامر)', number: 'samar.gov.sa', link: 'https://www.sama.gov.sa/ar-sa/consumerprotection/pages/fraudandscams.aspx', desc: 'تقديم بلاغ عن عملية احتيال' },
+      { name: 'الإبلاغ عن الجرائم المعلوماتية', number: '9200343222', tel: '9200343222', desc: 'الابتزاز الإلكتروني والجرائم السيبرانية' },
+    ]},
+    { section: 'الطوارئ', items: [
+      { name: 'الشرطة — الطوارئ', number: '911', tel: '911', desc: 'للحالات الطارئة' },
+      { name: 'الدفاع المدني', number: '998', tel: '998', desc: 'حالات الطوارئ العامة' },
+    ]},
+    { section: 'خطوط الاحتيال البنكي (قابلة للتعديل)', items: [
+      { name: 'مصرف الإنماء', number: '920028000', tel: '920028000', desc: 'خدمة العملاء والتحقق من الرسائل' },
+      { name: 'البنك الأهلي السعودي (SNB)', number: '9200001000', tel: '9200001000', desc: 'placeholder — حدّث الرقم الرسمي' },
+      { name: 'مصرف الراجحي', number: '920003344', tel: '920003344', desc: 'placeholder — حدّث الرقم الرسمي' },
+      { name: 'بنك الرياض', number: '920002470', tel: '920002470', desc: 'placeholder — حدّث الرقم الرسمي' },
+      { name: 'بنك سامبا', number: '8001248000', tel: '8001248000', desc: 'placeholder — حدّث الرقم الرسمي' },
+    ]},
+    { section: 'البريد الإلكتروني للإبلاغ', items: [
+      { name: 'الإبلاغ عن التصيد — placeholder', number: 'phishing@example.gov.sa', mailto: 'phishing@example.gov.sa', desc: 'حدّث بريد الإبلاغ الرسمي' },
+    ]},
+  ];
 
   const PHISHING_PATTERNS = [
     { re: /urgent|immediately|act now|within \d+ hours?|last chance|expires today|عاجل|فوراً|خلال \d+/i, flag: 'يخلق استعجالاً مصطنعاً لمنعك من التفكير بعناية', weight: 18 },
@@ -61,6 +175,7 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     alinmaPage.hidden = true;
     byteshieldPanel.hidden = false;
     document.body.style.overflow = 'hidden';
+    byteshieldPanel.scrollTop = 0;
   });
 
   closeByteshield.addEventListener('click', () => {
@@ -92,6 +207,18 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
   const uploadPreview = document.getElementById('upload-preview');
   const previewImg = document.getElementById('preview-img');
   const uploadRemove = document.getElementById('upload-remove');
+  const btnAskAi = document.getElementById('btn-ask-ai');
+  const btnContactSupport = document.getElementById('btn-contact-support');
+  const modalBackdrop = document.getElementById('modal-backdrop');
+  const chatModal = document.getElementById('chat-modal');
+  const supportModal = document.getElementById('support-modal');
+  const btnCloseChat = document.getElementById('btn-close-chat');
+  const btnCloseSupport = document.getElementById('btn-close-support');
+  const chatMessages = document.getElementById('chat-messages');
+  const chatForm = document.getElementById('chat-form');
+  const chatInput = document.getElementById('chat-input');
+  const btnChatSend = document.getElementById('btn-chat-send');
+  const supportContacts = document.getElementById('support-contacts');
 
   tabs.forEach((tab) => {
     tab.addEventListener('click', () => switchTab(tab.dataset.tab));
@@ -156,6 +283,19 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
   }
 
   btnScan.addEventListener('click', runAnalysis);
+
+  btnAskAi.addEventListener('click', openChatModal);
+  document.getElementById('btn-quick-chat').addEventListener('click', openChatModal);
+  btnContactSupport.addEventListener('click', openSupportModal);
+  btnCloseChat.addEventListener('click', closeModals);
+  btnCloseSupport.addEventListener('click', closeModals);
+  modalBackdrop.addEventListener('click', closeModals);
+  chatForm.addEventListener('submit', (e) => { e.preventDefault(); sendChatMessage(); });
+
+  chatModal.addEventListener('click', (e) => e.stopPropagation());
+  supportModal.addEventListener('click', (e) => e.stopPropagation());
+
+  closeModals();
 
   function getInputContent() {
     switch (activeTab) {
@@ -250,19 +390,23 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
   }
 
   function scoreToLevel(score) {
-    if (score < 35) return { level: 'منخفض', class: 'low', verdict: 'يبدو آمناً نسبياً — تحقق دائماً بشكل مستقل' };
-    if (score < 65) return { level: 'متوسط', class: 'medium', verdict: 'مشبوه — توخَّ الحذر قبل أي إجراء' };
-    return { level: 'مرتفع', class: 'high', verdict: 'احتيال أو تصيد محتمل — لا تتفاعل' };
+    const tier = getScoreTier(score);
+    const verdicts = {
+      low: 'يبدو آمناً نسبياً — تحقق دائماً بشكل مستقل',
+      medium: 'مشبوه — توخَّ الحذر قبل أي إجراء',
+      high: 'احتيال أو تصيد محتمل — لا تتفاعل',
+    };
+    return { level: tier.statusAr, class: tier.levelClass, verdict: verdicts[tier.levelClass] };
   }
 
   function getRecommendations(score, type) {
     const recs = [];
-    if (score >= 65) {
+    if (score >= 61) {
       recs.push('لا تنقر على أي روابط ولا ترد على الرسالة');
       recs.push('لا تشارك كلمات المرور أو رموز OTP أو بيانات الدفع');
       recs.push('تواصل مع الجهة مباشرة عبر موقعها أو تطبيق الإنماء الرسمي');
       recs.push('أبلغ البنك أو الجهات المختصة بالجرائم الإلكترونية');
-    } else if (score >= 35) {
+    } else if (score >= 31) {
       recs.push('تحقق من المرسل عبر قناة رسمية قبل أي إجراء');
       recs.push('افحص الرابط قبل النقر للتأكد من الوجهة الحقيقية');
       recs.push('ابحث عن تقارير مشابهة للاحتيال');
@@ -290,9 +434,9 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     if (flags.length > 0) {
       parts.push(`رصد ${flags.length} مؤشر${flags.length > 1 ? 'ات' : ''}، منها: ${flags[0]}.`);
     }
-    if (score >= 65) {
+    if (score >= 61) {
       parts.push('عدة مؤشرات تطابق حملات احتيال مالي وتصيد معروفة. الجمع بين الاستعجال وطلب البيانات والروابط المشبوهة إشارة قوية على احتيال.');
-    } else if (score >= 35) {
+    } else if (score >= 31) {
       parts.push('بعض الأنماط تشبه الهندسة الاجتماعية. الجهات الموثوقة نادراً ما تضغط عليك للتصرف فوراً عبر رسائل غير مطلوبة.');
     } else {
       parts.push('لم تُرصد أنماط تصيد رئيسية، لكن الهندسة الاجتماعية قد تكون خفية. ثق بحدسك إذا شعرت بأي شيء غريب.');
@@ -319,25 +463,30 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     try {
       if (activeTab === 'screenshot') {
         const analysis = analyzeScreenshot();
-        const { level, class: levelClass, verdict } = scoreToLevel(analysis.score);
-        const recommendations = getRecommendations(analysis.score, input.type);
-        const explanation = analysis.explanation || buildExplanation(input.text, analysis.flags, analysis.score, input.type);
-        renderResults(analysis.score, level, levelClass, verdict, analysis.flags, recommendations, explanation);
+        const report = buildScreenshotReport(analysis, input.text);
+        lastAnalysisContext = buildChatContext(input.text, report);
+        renderResults(report);
         return;
       }
 
-      const response = await fetch('http://localhost:3000/analyze', {
+      const response = await fetch(getAnalyzeUrl(), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: input.text }),
       });
 
-      const result = await response.json();
+      let result;
+      try {
+        result = await response.json();
+      } catch {
+        showToast('تعذر الاتصال بالخادم — افتح http://localhost:3000');
+        return;
+      }
 
       if (!response.ok || !result.success) {
         const message = result.error || 'فشل التحليل — تأكد من تشغيل الخادم';
-        if (message.includes('429') || message.toLowerCase().includes('quota')) {
-          showToast('تم تجاوز حد Gemini المجاني — انتظر دقيقة وحاول مجدداً');
+        if (message.includes('429') || message.toLowerCase().includes('quota') || message.toLowerCase().includes('rate limit')) {
+          showToast('تم تجاوز حد OpenAI — انتظر دقيقة وحاول مجدداً');
         } else {
           showToast(message);
         }
@@ -346,69 +495,298 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
 
       const ai = result.data;
       const score = Number(ai.riskScore) || 0;
-      const flags = Array.isArray(ai.reasons) ? ai.reasons : [];
-      const classification = String(ai.classification || '').toLowerCase();
-
-      let level;
-      let levelClass;
-      let verdict;
-
-      if (classification.includes('high') || score >= 65) {
-        level = 'مرتفع';
-        levelClass = 'high';
-        verdict = 'احتيال أو تصيد محتمل — لا تتفاعل';
-      } else if (classification.includes('medium') || score >= 35) {
-        level = 'متوسط';
-        levelClass = 'medium';
-        verdict = 'مشبوه — توخَّ الحذر قبل أي إجراء';
-      } else {
-        level = 'منخفض';
-        levelClass = 'low';
-        verdict = 'يبدو آمناً نسبياً — تحقق دائماً بشكل مستقل';
-      }
-
-      const recommendations = ai.recommendation
-        ? [ai.recommendation, ...getRecommendations(score, input.type)]
-        : getRecommendations(score, input.type);
-
-      const explanation = buildExplanation(input.text, flags, score, input.type);
-
-      renderResults(score, level, levelClass, verdict, flags, recommendations, explanation);
+      const report = normalizeAiReport(ai, score, input.text);
+      lastAnalysisContext = buildChatContext(input.text, report);
+      renderResults(report);
     } catch (error) {
       console.error(error);
-      showToast('تعذر الاتصال بالخادم — شغّل الباكند أولاً (node server.js)');
+      showToast('تعذر الاتصال بالخادم — افتح http://localhost:3000 وشغّل الباكند من مجلد backend');
     } finally {
       btnScan.classList.remove('scanning');
-      btnScan.textContent = 'تشغيل التحليل الأمني';
+      btnScan.textContent = '🛡️ بدء التحليل الأمني';
     }
   }
 
-  function renderResults(score, level, levelClass, verdict, flags, recommendations, explanation) {
+  function normalizeAiReport(ai, score, text) {
+    const tier = getScoreTier(score);
+    const reasoning = Array.isArray(ai.reasoning) ? ai.reasoning
+      : Array.isArray(ai.reasons) ? ai.reasons : [];
+    const breakdown = ai.riskBreakdown || {};
+    return {
+      score,
+      tier,
+      statusMessage: ai.statusMessage || tier.defaultMessage,
+      shortExplanation: ai.shortExplanation || buildExplanation(text, reasoning, score, 'Message'),
+      confidence: Number(ai.confidence) || Math.min(98, Math.max(55, score + 10)),
+      reasoning,
+      actionChecklist: Array.isArray(ai.actionChecklist) && ai.actionChecklist.length
+        ? ai.actionChecklist : getDefaultActions(score),
+      riskBreakdown: {
+        senderAuthenticity: breakdown.senderAuthenticity ?? Math.round(score * 0.8),
+        languageAnalysis: breakdown.languageAnalysis ?? Math.round(score * 0.7),
+        linkSafety: breakdown.linkSafety ?? Math.round(score * 0.85),
+        financialFraudIndicators: breakdown.financialFraudIndicators ?? Math.round(score * 0.9),
+        socialEngineeringIndicators: breakdown.socialEngineeringIndicators ?? Math.round(score * 0.75),
+        urgencyDetection: breakdown.urgencyDetection ?? Math.round(score * 0.65),
+      },
+      detailedAnalysis: ai.detailedAnalysis || ai.shortExplanation || '',
+      detectedBanks: Array.isArray(ai.detectedBanks) ? ai.detectedBanks : [],
+      bankAdvice: ai.bankAdvice || '',
+      threatType: ai.threatType || 'phishing',
+      securityTips: Array.isArray(ai.securityTips) && ai.securityTips.length
+        ? ai.securityTips : getDefaultTips(ai.threatType || 'phishing'),
+    };
+  }
+
+  function buildScreenshotReport(analysis, text) {
+    const score = analysis.score;
+    const tier = getScoreTier(score);
+    return {
+      score,
+      tier,
+      statusMessage: tier.defaultMessage,
+      shortExplanation: analysis.explanation || buildExplanation(text, analysis.flags, score, 'Screenshot'),
+      confidence: 72,
+      reasoning: analysis.flags,
+      actionChecklist: getDefaultActions(score),
+      riskBreakdown: {
+        senderAuthenticity: 70,
+        languageAnalysis: 65,
+        linkSafety: 50,
+        financialFraudIndicators: 75,
+        socialEngineeringIndicators: 80,
+        urgencyDetection: 72,
+      },
+      detailedAnalysis: analysis.explanation || '',
+      detectedBanks: [],
+      bankAdvice: '',
+      threatType: 'social_engineering',
+      securityTips: getDefaultTips('social_engineering'),
+    };
+  }
+
+  function buildChatContext(text, report) {
+    return [
+      `الرسالة: ${text}`,
+      `درجة الخطر: ${report.score}/100`,
+      `الحالة: ${report.tier.statusAr}`,
+      `الشرح: ${report.shortExplanation}`,
+      `الأسباب: ${report.reasoning.join('؛ ')}`,
+      `التوصيات: ${report.actionChecklist.join('؛ ')}`,
+    ].join('\n');
+  }
+
+  function renderResults(report) {
+    const { score, tier, shortExplanation, confidence, reasoning,
+      actionChecklist, riskBreakdown, detailedAnalysis, detectedBanks, bankAdvice, securityTips } = report;
+
     resultsPlaceholder.hidden = true;
     results.hidden = false;
+
+    const recommendCard = document.getElementById('recommend-card');
+    recommendCard.hidden = false;
 
     document.getElementById('results-time').textContent = new Date().toLocaleString('ar-SA');
     document.getElementById('risk-score').textContent = score;
 
     const ring = document.getElementById('risk-ring');
-    ring.className = 'risk-gauge__fill risk-gauge__fill--' + levelClass;
-    ring.style.strokeDashoffset = RING_CIRCUMFERENCE - (score / 100) * RING_CIRCUMFERENCE;
+    const hero = document.getElementById('score-hero');
+    ring.setAttribute('class', `risk-gauge__fill risk-gauge__fill--${tier.levelClass}`);
+    ring.style.stroke = GAUGE_COLORS[tier.levelClass];
+    ring.style.strokeDasharray = String(RING_MAX);
+    ring.style.strokeDashoffset = String(RING_MAX);
+    hero.className = `score-hero score-hero--${tier.levelClass}`;
 
-    const badge = document.getElementById('risk-level');
-    badge.textContent = 'خطر ' + level;
-    badge.className = 'risk-badge risk-badge--' + levelClass;
+    requestAnimationFrame(() => {
+      setTimeout(() => { ring.style.strokeDashoffset = String(RING_MAX - score); }, 80);
+    });
 
-    document.getElementById('risk-verdict').textContent = verdict;
+    document.getElementById('risk-tier-label').textContent = tier.tierLabel;
+    document.getElementById('results-status-desc').textContent = shortExplanation;
 
-    const flagList = document.getElementById('flag-list');
-    flagList.innerHTML = flags.map((f) => `<li>${escapeHtml(f)}</li>`).join('');
+    const recSummary = score <= 30 ? 'لا يلزم إجراء فوري' : score <= 60 ? 'توخَّ الحذر وتحقق' : 'إجراءات عاجلة مطلوبة';
+    document.getElementById('stat-rec-text').textContent = recSummary;
 
-    const recList = document.getElementById('rec-list');
-    recList.innerHTML = recommendations.map((r) => `<li>${escapeHtml(r)}</li>`).join('');
+    const indicatorCount = reasoning.length;
+    const warnText = indicatorCount === 0
+      ? 'لم تُرصد مؤشرات واضحة'
+      : indicatorCount <= 2
+        ? 'مؤشرات منخفضة'
+        : indicatorCount <= 4
+          ? 'مؤشرات متوسطة'
+          : 'مؤشرات مرتفعة';
+    document.getElementById('stat-warn-text').textContent = `${indicatorCount} — ${warnText}`;
 
-    document.getElementById('ai-explanation').textContent = explanation;
+    document.getElementById('recommend-summary').textContent = shortExplanation;
+    document.getElementById('recommend-checklist').innerHTML = actionChecklist
+      .map((a) => `<li>${escapeHtml(a)}</li>`).join('');
 
-    results.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    document.getElementById('eval-bars').innerHTML = EVAL_METRICS.map(({ key, label }) => {
+      const riskVal = riskBreakdown[key] ?? score;
+      const safetyVal = 100 - riskVal;
+      const barClass = safetyVal >= 70 ? 'safe' : safetyVal >= 40 ? 'warn' : 'danger';
+      return `<div class="eval-bar">
+        <div class="eval-bar__head"><span>${escapeHtml(label)}</span><span>${safetyVal}/100</span></div>
+        <div class="eval-bar__track">
+          <div class="eval-bar__fill eval-bar__fill--${barClass}" data-width="${safetyVal}" style="width:0"></div>
+        </div>
+      </div>`;
+    }).join('');
+
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        document.querySelectorAll('.eval-bar__fill').forEach((el) => {
+          el.style.width = `${el.dataset.width}%`;
+        });
+      }, 250);
+    });
+
+    document.getElementById('detailed-analysis').textContent = detailedAnalysis;
+    document.getElementById('reason-list').innerHTML = reasoning.length
+      ? reasoning.map((r) => `<li>${escapeHtml(r)}</li>`).join('')
+      : '<li>لم تُرصد مؤشرات تصيد واضحة</li>';
+
+    updateBankFooter(detectedBanks, bankAdvice, securityTips);
+
+    document.querySelector('.dashboard__results').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  function updateBankFooter(detectedBanks, bankAdvice, securityTips) {
+    const title = document.getElementById('bank-footer-title');
+    const tipsList = document.getElementById('bank-footer-tips');
+
+    if (detectedBanks && detectedBanks.length) {
+      title.textContent = `إرشادات ${detectedBanks[0]}`;
+      const tips = securityTips && securityTips.length ? securityTips : [
+        'لا تشارك بياناتك البنكية عبر الرسائل',
+        'تحقق من عنوان الموقع الرسمي',
+        'لا تُدخل رمز OTP لأي جهة تطلبه عبر SMS',
+        'استخدم التطبيق الرسمي فقط',
+      ];
+      if (bankAdvice) {
+        tips.unshift(bankAdvice);
+      }
+      tipsList.innerHTML = tips.slice(0, 5).map((t) => `<li><span>🛡️</span>${escapeHtml(t)}</li>`).join('');
+    } else {
+      title.textContent = 'إرشادات البنوك';
+      tipsList.innerHTML = `
+        <li><span>🛡️</span>لا تشارك بياناتك البنكية عبر الرسائل</li>
+        <li><span>🛡️</span>تحقق من عنوان الموقع الرسمي</li>
+        <li><span>🛡️</span>لا تُدخل رمز OTP لأي جهة تطلبه عبر SMS</li>
+        <li><span>🛡️</span>استخدم التطبيق الرسمي فقط</li>`;
+    }
+  }
+
+  function renderSupportContacts() {
+    supportContacts.innerHTML = SUPPORT_CONTACTS.map((section) => `
+      <div class="support-section-title">${escapeHtml(section.section)}</div>
+      ${section.items.map((item) => {
+        let linkHtml = '';
+        if (item.tel) {
+          linkHtml = `<a href="tel:${item.tel}">${escapeHtml(item.number)}</a>`;
+        } else if (item.mailto) {
+          linkHtml = `<a href="mailto:${item.mailto}">${escapeHtml(item.number)}</a>`;
+        } else if (item.link) {
+          linkHtml = `<a href="${item.link}" target="_blank" rel="noopener">${escapeHtml(item.number)}</a>`;
+        } else {
+          linkHtml = escapeHtml(item.number);
+        }
+        return `<div class="support-contact"><strong>${escapeHtml(item.name)}</strong>${linkHtml}<span>${escapeHtml(item.desc)}</span></div>`;
+      }).join('')}
+    `).join('');
+  }
+
+  function openChatModal() {
+    supportModal.hidden = true;
+    chatHistory = [];
+    chatMessages.innerHTML = '';
+    appendChatMessage('bot', 'مرحباً! أنا ByteShield AI. لديّ نتيجة تحليلك — اسألني أي شيء: لماذا مشبوهة؟ هل أُبلّغ؟ ماذا لو نقرت الرابط؟');
+    modalBackdrop.hidden = false;
+    chatModal.hidden = false;
+    document.body.style.overflow = 'hidden';
+    chatInput.focus();
+  }
+
+  function openSupportModal() {
+    chatModal.hidden = true;
+    renderSupportContacts();
+    modalBackdrop.hidden = false;
+    supportModal.hidden = false;
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeModals() {
+    modalBackdrop.hidden = true;
+    chatModal.hidden = true;
+    supportModal.hidden = true;
+    chatHistory = [];
+    if (!byteshieldPanel.hidden) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+  }
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !modalBackdrop.hidden) {
+      closeModals();
+    }
+  });
+
+  function appendChatMessage(role, text) {
+    const el = document.createElement('div');
+    el.className = `chat-msg chat-msg--${role}`;
+    el.textContent = text;
+    chatMessages.appendChild(el);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+    return el;
+  }
+
+  async function sendChatMessage() {
+    const text = chatInput.value.trim();
+    if (!text) return;
+
+    chatInput.value = '';
+    appendChatMessage('user', text);
+    chatHistory.push({ role: 'user', content: text });
+    btnChatSend.disabled = true;
+
+    const typing = appendChatMessage('bot', 'جاري الكتابة…');
+    typing.classList.add('chat-msg--typing');
+
+    try {
+      const response = await fetch(getApiUrl('/chat'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: chatHistory, context: lastAnalysisContext }),
+      });
+
+      let result;
+      try { result = await response.json(); } catch {
+        typing.remove();
+        showToast('تعذر الاتصال بالمساعد');
+        return;
+      }
+
+      typing.remove();
+
+      if (!response.ok || !result.success) {
+        showToast(result.error || 'فشل الإرسال');
+        chatHistory.pop();
+        return;
+      }
+
+      chatHistory.push({ role: 'assistant', content: result.reply });
+      appendChatMessage('bot', result.reply);
+    } catch (err) {
+      typing.remove();
+      console.error(err);
+      showToast('تعذر الاتصال بالمساعد');
+      chatHistory.pop();
+    } finally {
+      btnChatSend.disabled = false;
+      chatInput.focus();
+    }
   }
 
   function showToast(message) {
