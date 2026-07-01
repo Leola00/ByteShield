@@ -315,35 +315,63 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
 
     btnScan.classList.add('scanning');
     btnScan.textContent = 'جاري التحليل…';
-    const response = await fetch("http://localhost:3000/analyze", {
-      method: "POST",
-      headers: {
-          "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-          text: input.text
-      })
-  });
-  
-  const data = await response.json();
-  
-  console.log(data);
 
-    if (analysis.invalid) {
-      showToast('يرجى إدخال محتوى للتحليل');
+    try {
+      const response = await fetch('http://localhost:3000/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: input.text }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        const message = result.error || 'فشل التحليل — تأكد من تشغيل الخادم';
+        if (message.includes('429') || message.toLowerCase().includes('quota')) {
+          showToast('تم تجاوز حد Gemini المجاني — انتظر دقيقة وحاول مجدداً');
+        } else {
+          showToast(message);
+        }
+        return;
+      }
+
+      const ai = result.data;
+      const score = Number(ai.riskScore) || 0;
+      const flags = Array.isArray(ai.reasons) ? ai.reasons : [];
+      const classification = String(ai.classification || '').toLowerCase();
+
+      let level;
+      let levelClass;
+      let verdict;
+
+      if (classification.includes('high') || score >= 65) {
+        level = 'مرتفع';
+        levelClass = 'high';
+        verdict = 'احتيال أو تصيد محتمل — لا تتفاعل';
+      } else if (classification.includes('medium') || score >= 35) {
+        level = 'متوسط';
+        levelClass = 'medium';
+        verdict = 'مشبوه — توخَّ الحذر قبل أي إجراء';
+      } else {
+        level = 'منخفض';
+        levelClass = 'low';
+        verdict = 'يبدو آمناً نسبياً — تحقق دائماً بشكل مستقل';
+      }
+
+      const recommendations = ai.recommendation
+        ? [ai.recommendation, ...getRecommendations(score, input.type)]
+        : getRecommendations(score, input.type);
+
+      const explanation = buildExplanation(input.text, flags, score, input.type);
+
+      renderResults(score, level, levelClass, verdict, flags, recommendations, explanation);
+    } catch (error) {
+      console.error(error);
+      showToast('تعذر الاتصال بالخادم — شغّل الباكند أولاً (node server.js)');
+    } finally {
       btnScan.classList.remove('scanning');
       btnScan.textContent = 'تشغيل التحليل الأمني';
-      return;
     }
-
-    const { level, class: levelClass, verdict } = scoreToLevel(analysis.score);
-    const recommendations = getRecommendations(analysis.score, input.type);
-    const explanation = analysis.explanation || buildExplanation(input.text, analysis.flags, analysis.score, input.type);
-
-    renderResults(analysis.score, level, levelClass, verdict, analysis.flags, recommendations, explanation);
-
-    btnScan.classList.remove('scanning');
-    btnScan.textContent = 'تشغيل التحليل الأمني';
   }
 
   function renderResults(score, level, levelClass, verdict, flags, recommendations, explanation) {

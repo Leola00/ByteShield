@@ -1,39 +1,44 @@
-const dotenv = require("dotenv");
-
-dotenv.config({
-  path: "./.env",
-  override: true,
-});
-
-console.log(process.env.OPENAI_API_KEY);
-
+require("dotenv").config();
 
 const express = require("express");
 const cors = require("cors");
-const OpenAI = require("openai");
+const { GoogleGenerativeAI } = require("@google/generative-ai");
 
 const app = express();
 
 app.use(cors());
 app.use(express.json());
 
-// Check if API key exists
-if (!process.env.OPENAI_API_KEY) {
-  console.error("❌ OPENAI_API_KEY not found in .env");
+if (!process.env.GEMINI_API_KEY) {
+  console.error("❌ GEMINI_API_KEY not found in .env");
   process.exit(1);
 }
 
-// Create OpenAI client
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const model = genAI.getGenerativeModel({
+  model: process.env.GEMINI_MODEL || "gemini-2.0-flash",
+  systemInstruction: `
+You are ByteShield, an AI cybersecurity assistant.
+
+Analyze messages for financial fraud, phishing, and social engineering.
+
+Return ONLY valid JSON in this format:
+{
+  "riskScore": 0,
+  "classification": "Low Risk | Medium Risk | High Risk",
+  "reasons": [],
+  "recommendation": ""
+}
+`,
+  generationConfig: {
+    responseMimeType: "application/json",
+  },
 });
 
-// Test route
 app.get("/", (req, res) => {
-  res.send("✅ ByteShield Backend is Running!");
+  res.send("✅ ByteShield Backend Running");
 });
 
-// AI analysis route
 app.post("/analyze", async (req, res) => {
   try {
     const { text } = req.body;
@@ -41,44 +46,19 @@ app.post("/analyze", async (req, res) => {
     if (!text) {
       return res.status(400).json({
         success: false,
-        error: "No text provided.",
+        error: "No text provided",
       });
     }
 
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4.1-mini",
-      response_format: { type: "json_object" },
-      messages: [
-        {
-          role: "system",
-          content: `
-You are ByteShield, an AI cybersecurity assistant.
-
-Analyze financial fraud and phishing messages.
-
-Return ONLY valid JSON in this format:
-
-{
-  "riskScore": 0,
-  "classification": "Low Risk",
-  "reasons": [],
-  "recommendation": ""
-}
-`,
-        },
-        {
-          role: "user",
-          content: text,
-        },
-      ],
-    });
+    const result = await model.generateContent(text);
+    const content = result.response.text();
 
     res.json({
       success: true,
-      data: JSON.parse(completion.choices[0].message.content),
+      data: JSON.parse(content),
     });
   } catch (error) {
-    console.error("OpenAI Error:", error);
+    console.error("Gemini Error:", error);
 
     res.status(500).json({
       success: false,
@@ -87,9 +67,8 @@ Return ONLY valid JSON in this format:
   }
 });
 
-// Start server
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
-  console.log(`🚀 ByteShield Backend running on http://localhost:${PORT}`);
+  console.log(`🚀 ByteShield running on http://localhost:${PORT}`);
 });
