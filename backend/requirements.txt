@@ -1,0 +1,7 @@
+tensorflow>=2.15
+scikit-learn>=1.6.1
+numpy>=1.26
+joblib>=1.3
+requests>=2.31
+dnspython>=2.6
+python-whois>=0.9

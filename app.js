@@ -32,6 +32,10 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     return getApiUrl('/analyze');
   }
 
+  function getPredictUrlEndpoint() {
+    return getApiUrl('/predict-url');
+  }
+
   function getScoreTier(score) {
     if (score <= 30) {
       return {
@@ -444,6 +448,44 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     return parts.join(' ');
   }
 
+  function buildLocalReport(text, contentType) {
+    const analysis = contentType === 'URL' ? analyzeUrl(text) : analyzeText(text);
+    const score = analysis.score;
+    const tier = getScoreTier(score);
+    const flags = analysis.flags || [];
+
+    return {
+      score,
+      tier,
+      statusMessage: tier.defaultMessage,
+      shortExplanation: buildExplanation(text, flags, score, contentType),
+      confidence: Math.min(98, Math.max(55, score + 10)),
+      reasoning: flags.length ? flags : ['لم تُرصد مؤشرات خطر واضحة'],
+      actionChecklist: getRecommendations(score, contentType),
+      riskBreakdown: {
+        senderAuthenticity: Math.round(score * 0.8),
+        languageAnalysis: Math.round(score * 0.7),
+        linkSafety: Math.round(score * 0.85),
+        financialFraudIndicators: Math.round(score * 0.9),
+        socialEngineeringIndicators: Math.round(score * 0.75),
+        urgencyDetection: Math.round(score * 0.65),
+      },
+      detailedAnalysis: buildExplanation(text, flags, score, contentType),
+      detectedBanks: [],
+      bankAdvice: '',
+      threatType: 'phishing',
+      securityTips: getDefaultTips('phishing'),
+      source: 'local',
+      analysisNote: 'تحليل محلي (مفتاح OpenAI غير متاح) — للرسائل استخدم مفتاح API صالحاً للدقة الأعلى',
+    };
+  }
+
+  function isOpenAiKeyError(message) {
+    if (!message) return false;
+    const lower = message.toLowerCase();
+    return lower.includes('api key') || lower.includes('incorrect api') || lower.includes('401');
+  }
+
   async function runAnalysis() {
     const input = getInputContent();
 
@@ -458,7 +500,9 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     }
 
     btnScan.classList.add('scanning');
-    btnScan.textContent = 'جاري التحليل…';
+    btnScan.textContent = activeTab === 'url'
+      ? 'جاري تحليل الرابط… (قد يستغرق 30 ث)'
+      : 'جاري التحليل…';
 
     try {
       if (activeTab === 'screenshot') {
@@ -469,24 +513,61 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
         return;
       }
 
-      const response = await fetch(getAnalyzeUrl(), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: input.text }),
-      });
+      const endpoint = activeTab === 'url' ? getPredictUrlEndpoint() : getAnalyzeUrl();
+      const payload = activeTab === 'url' ? { url: input.text } : { text: input.text };
+
+      let response;
+      try {
+        response = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+      } catch {
+        const report = buildLocalReport(input.text, input.type);
+        lastAnalysisContext = buildChatContext(input.text, report);
+        renderResults(report);
+        showToast('تعذر الاتصال بالخادم — تم استخدام التحليل المحلي');
+        return;
+      }
 
       let result;
       try {
         result = await response.json();
       } catch {
+        if (activeTab !== 'url') {
+          const report = buildLocalReport(input.text, input.type);
+          lastAnalysisContext = buildChatContext(input.text, report);
+          renderResults(report);
+          showToast('تعذر قراءة رد الخادم — تم استخدام التحليل المحلي');
+          return;
+        }
         showToast('تعذر الاتصال بالخادم — افتح http://localhost:3000');
         return;
       }
 
       if (!response.ok || !result.success) {
         const message = result.error || 'فشل التحليل — تأكد من تشغيل الخادم';
+
+        if (activeTab !== 'url' || isOpenAiKeyError(message)) {
+          const report = buildLocalReport(input.text, input.type);
+          lastAnalysisContext = buildChatContext(input.text, report);
+          renderResults(report);
+          if (isOpenAiKeyError(message)) {
+            showToast('مفتاح OpenAI غير صالح — تم استخدام التحليل المحلي. حدّث backend/.env');
+          } else {
+            showToast('فشل التحليل السحابي — تم استخدام التحليل المحلي');
+          }
+          return;
+        }
+
         if (message.includes('429') || message.toLowerCase().includes('quota') || message.toLowerCase().includes('rate limit')) {
           showToast('تم تجاوز حد OpenAI — انتظر دقيقة وحاول مجدداً');
+        } else if (activeTab === 'url') {
+          const report = buildLocalReport(input.text, input.type);
+          lastAnalysisContext = buildChatContext(input.text, report);
+          renderResults(report);
+          showToast('تعذر تشغيل نموذج التعلم العميق — تم استخدام التحليل المحلي');
         } else {
           showToast(message);
         }
@@ -602,7 +683,9 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     });
 
     document.getElementById('risk-tier-label').textContent = tier.tierLabel;
-    document.getElementById('results-status-desc').textContent = shortExplanation;
+    document.getElementById('results-status-desc').textContent = report.analysisNote
+      ? `${report.analysisNote}\n\n${shortExplanation}`
+      : shortExplanation;
 
     const recSummary = score <= 30 ? 'لا يلزم إجراء فوري' : score <= 60 ? 'توخَّ الحذر وتحقق' : 'إجراءات عاجلة مطلوبة';
     document.getElementById('stat-rec-text').textContent = recSummary;
