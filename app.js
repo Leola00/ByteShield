@@ -115,10 +115,6 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
       { name: 'منصة الإبلاغ عن الاحتيال المالي (سامر)', number: 'samar.gov.sa', link: 'https://www.sama.gov.sa/ar-sa/consumerprotection/pages/fraudandscams.aspx', desc: 'تقديم بلاغ عن عملية احتيال' },
       { name: 'الإبلاغ عن الجرائم المعلوماتية', number: '9200343222', tel: '9200343222', desc: 'الابتزاز الإلكتروني والجرائم السيبرانية' },
     ]},
-    { section: 'الطوارئ', items: [
-      { name: 'الشرطة — الطوارئ', number: '911', tel: '911', desc: 'للحالات الطارئة' },
-      { name: 'الدفاع المدني', number: '998', tel: '998', desc: 'حالات الطوارئ العامة' },
-    ]},
     { section: 'خطوط الاحتيال البنكي (قابلة للتعديل)', items: [
       { name: 'مصرف الإنماء', number: '920028000', tel: '920028000', desc: 'خدمة العملاء والتحقق من الرسائل' },
       { name: 'البنك الأهلي السعودي (SNB)', number: '9200001000', tel: '9200001000', desc: 'placeholder — حدّث الرقم الرسمي' },
@@ -654,7 +650,7 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
       showToast('تعذر الاتصال بالخادم — افتح http://localhost:3000 وشغّل الباكند من مجلد backend');
     } finally {
       btnScan.classList.remove('scanning');
-      btnScan.textContent = '🛡️ بدء التحليل الأمني';
+      btnScan.textContent = 'بدء التحليل الأمني';
     }
   }
 
