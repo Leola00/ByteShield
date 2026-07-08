@@ -21,6 +21,7 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
   let lastAnalysisContext = '';
   let lastSocReport = null;
   let lastUserReport = null;
+  let socReportLoading = false;
   let lastEvidenceText = '';
   let lastContentType = 'Message';
   let activeMode = 'user';
@@ -313,6 +314,12 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
       if (mode === 'soc') updateFinancialImpactDashboard();
     }
 
+    if (mode === 'soc' && !lastSocReport && !socReportLoading) {
+      if (socLoadingEl) socLoadingEl.hidden = true;
+      if (socReportEl) { socReportEl.hidden = true; socReportEl.innerHTML = ''; }
+      if (socEmptyEl) socEmptyEl.hidden = !!lastUserReport;
+    }
+
     updateResultsVisibility();
   }
 
@@ -399,7 +406,7 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
   function updateResultsVisibility() {
     const hasUser = !!lastUserReport;
     const hasSoc = !!lastSocReport;
-    const socLoading = socLoadingEl && !socLoadingEl.hidden;
+    const socLoading = socReportLoading;
 
     if (activeMode === 'user') {
       if (resultsSoc) resultsSoc.hidden = true;
@@ -931,10 +938,11 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
   }
 
   function showSocLoading() {
+    socReportLoading = true;
     if (socLoadingEl) socLoadingEl.hidden = false;
     if (socReportEl) { socReportEl.hidden = true; socReportEl.innerHTML = ''; }
     if (socEmptyEl) socEmptyEl.hidden = true;
-    if (resultsSoc) resultsSoc.hidden = activeMode === 'soc';
+    if (resultsSoc) resultsSoc.hidden = activeMode !== 'soc';
     updateResultsVisibility();
   }
 
@@ -1094,6 +1102,7 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
   function renderSocReport(soc) {
     if (!socReportEl) return;
 
+    socReportLoading = false;
     if (socLoadingEl) socLoadingEl.hidden = true;
     if (socEmptyEl) socEmptyEl.hidden = true;
     socReportEl.hidden = false;
