@@ -6,8 +6,7 @@ import json
 import os
 import sys
 import uuid
-from datetime import datetime
-from zoneinfo import ZoneInfo
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -93,8 +92,11 @@ Return ONLY valid JSON matching this schema:
 """
 
 
+SAUDI_TZ = timezone(timedelta(hours=3))
+
+
 def _default_report_id() -> str:
-    stamp = datetime.now(timezone.utc).strftime("%Y%m%d")
+    stamp = datetime.now(SAUDI_TZ).strftime("%Y%m%d")
     suffix = uuid.uuid4().hex[:6].upper()
     return f"BS-IR-{stamp}-{suffix}"
 
@@ -146,7 +148,7 @@ Prior triage assessment (from ByteShield detector):
 
     report = json.loads(content)
     report.setdefault("reportId", _default_report_id())
-    report.setdefault("generatedAt", datetime.now(ZoneInfo("Asia/Riyadh")).isoformat())
+    report.setdefault("generatedAt", datetime.now(SAUDI_TZ).isoformat())
     report.setdefault("reportVersion", "1.0")
     return report
 
