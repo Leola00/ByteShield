@@ -18,6 +18,22 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     { key: 'financialFraudIndicators', label: 'المرفقات' },
   ];
 
+  const SAUDI_TZ = 'Asia/Riyadh';
+
+  function formatSaudiDateTime(date = new Date()) {
+    return new Intl.DateTimeFormat('ar-SA', {
+      timeZone: SAUDI_TZ,
+      calendar: 'gregory',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: true,
+    }).format(date);
+  }
+
   let lastAnalysisContext = '';
   let lastSocReport = null;
   let lastUserReport = null;
@@ -969,7 +985,7 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
         attackVector: 'Social engineering via unsolicited message',
         impactAssessment: score >= 61 ? 'Potential credential theft or financial fraud' : 'Limited observed impact',
         affectedAssets: ['User messaging channel', 'Potential credentials'],
-        timeline: [{ phase: 'Delivery', timestamp: 'Estimated', description: 'Suspicious content submitted for analysis' }],
+        timeline: [{ phase: 'Delivery', timestamp: formatSaudiDateTime(), description: 'Suspicious content submitted for analysis' }],
       },
       mitreAttack: {
         tactics: score >= 61 ? ['Initial Access', 'Credential Access'] : ['Initial Access'],
@@ -1119,7 +1135,7 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
       <header class="soc-header">
         <div class="soc-header__meta">
           <span class="soc-report-id" dir="ltr">${escapeHtml(soc.reportId || 'BS-IR-UNKNOWN')}</span>
-          <span class="soc-report-time">${escapeHtml(soc.generatedAt ? new Date(soc.generatedAt).toLocaleString('en-GB') : '')}</span>
+          <span class="soc-report-time">${escapeHtml(soc.generatedAt ? formatSaudiDateTime(new Date(soc.generatedAt)) : formatSaudiDateTime())}</span>
         </div>
         <h3 class="soc-header__title">${escapeHtml(inc.title || 'Security Incident Report')}</h3>
         <div class="soc-header__badges">
@@ -1229,7 +1245,7 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
 
     if (recommendCard) recommendCard.hidden = activeMode !== 'user';
 
-    document.getElementById('results-time').textContent = new Date().toLocaleString('ar-SA');
+    document.getElementById('results-time').textContent = formatSaudiDateTime();
     document.getElementById('risk-score').textContent = score;
 
     const ring = document.getElementById('risk-ring');

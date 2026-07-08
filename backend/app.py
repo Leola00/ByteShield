@@ -6,7 +6,8 @@ import json
 import os
 import sys
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime
+from zoneinfo import ZoneInfo
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -145,7 +146,7 @@ Prior triage assessment (from ByteShield detector):
 
     report = json.loads(content)
     report.setdefault("reportId", _default_report_id())
-    report.setdefault("generatedAt", datetime.now(timezone.utc).isoformat())
+    report.setdefault("generatedAt", datetime.now(ZoneInfo("Asia/Riyadh")).isoformat())
     report.setdefault("reportVersion", "1.0")
     return report
 
