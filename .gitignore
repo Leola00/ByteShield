@@ -22,3 +22,7 @@ npm-debug.log*
 
 # Dependencies (if you add Node later)
 node_modules/
+
+# Local analytics store
+backend/byteshield_incidents.json
+backend/byteshield_soc.db

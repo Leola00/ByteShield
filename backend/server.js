@@ -7,6 +7,7 @@ const cors = require("cors");
 const multer = require("multer");
 const pdfParse = require("pdf-parse");
 const OpenAI = require("openai");
+const analytics = require("./analytics");
 
 const app = express();
 
@@ -106,6 +107,8 @@ Saudi resources you may cite:
 const PYTHON_BIN = process.env.PYTHON_BIN || "py";
 const PYTHON_ARGS = process.env.PYTHON_ARGS ? process.env.PYTHON_ARGS.split(" ") : ["-3"];
 const ML_PREDICT_SCRIPT = path.join(__dirname, "ml", "predict_url.py");
+const FINANCIAL_FORECAST_SCRIPT = path.join(__dirname, "ml", "predict_financial_risk.py");
+const SOC_REPORT_SCRIPT = path.join(__dirname, "app.py");
 
 function getOpenAiModel() {
   return process.env.OPENAI_MODEL || "gpt-4o-mini";
@@ -218,6 +221,59 @@ async function analyzeImageBuffer(buffer, mimeType) {
   ]);
 }
 
+function runSocReport(payload) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(PYTHON_BIN, [...PYTHON_ARGS, SOC_REPORT_SCRIPT], {
+      cwd: __dirname,
+      windowsHide: true,
+      env: { ...process.env, PYTHONIOENCODING: "utf-8" },
+    });
+
+    let stdout = "";
+    let stderr = "";
+
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk.toString();
+    });
+
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk.toString();
+    });
+
+    child.on("error", (error) => {
+      reject(error);
+    });
+
+    child.stdin.write(JSON.stringify(payload));
+    child.stdin.end();
+
+    child.on("close", (code) => {
+      const output = stdout.trim();
+
+      if (output) {
+        try {
+          const parsed = JSON.parse(output);
+          if (code !== 0) {
+            reject(new Error(parsed.error || stderr.trim() || `SOC report generator exited with code ${code}`));
+            return;
+          }
+          resolve(parsed);
+          return;
+        } catch {
+          // fall through
+        }
+      }
+
+      if (code !== 0) {
+        reject(new Error(stderr.trim() || `SOC report generator exited with code ${code}`));
+        return;
+      }
+
+      reject(new Error("Invalid JSON from SOC report generator"));
+    });
+  });
+}
+
 function runUrlMlPrediction(url) {
   return new Promise((resolve, reject) => {
     const child = spawn(PYTHON_BIN, [...PYTHON_ARGS, ML_PREDICT_SCRIPT, url], {
@@ -253,6 +309,71 @@ function runUrlMlPrediction(url) {
       }
     });
   });
+}
+
+function runFinancialForecast(payload) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(PYTHON_BIN, [...PYTHON_ARGS, FINANCIAL_FORECAST_SCRIPT], {
+      cwd: __dirname,
+      windowsHide: true,
+      env: { ...process.env, PYTHONIOENCODING: "utf-8" },
+    });
+
+    let stdout = "";
+    let stderr = "";
+
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk.toString();
+    });
+
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk.toString();
+    });
+
+    child.on("error", (error) => {
+      reject(error);
+    });
+
+    child.stdin.write(JSON.stringify(payload));
+    child.stdin.end();
+
+    child.on("close", (code) => {
+      const output = stdout.trim();
+
+      if (output) {
+        try {
+          const parsed = JSON.parse(output);
+          if (code !== 0) {
+            reject(new Error(parsed.error || stderr.trim() || `Financial forecast exited with code ${code}`));
+            return;
+          }
+          resolve(parsed);
+          return;
+        } catch {
+          // fall through
+        }
+      }
+
+      if (code !== 0) {
+        reject(new Error(stderr.trim() || `Financial forecast exited with code ${code}`));
+        return;
+      }
+
+      reject(new Error("Invalid JSON from financial forecast generator"));
+    });
+  });
+}
+
+function recordAnalysisIncident(text, data) {
+  try {
+    analytics.saveIncident({
+      text,
+      score: Number(data.riskScore) || 0,
+      classification: data.classification || analytics.classificationFromScore(data.riskScore),
+    });
+  } catch (error) {
+    console.error("Analytics save error:", error);
+  }
 }
 
 function buildMlUrlReport(url, ml) {
@@ -358,9 +479,12 @@ app.post("/predict-url", async (req, res) => {
       });
     }
 
+    const data = buildMlUrlReport(String(url).trim(), ml);
+    recordAnalysisIncident(String(url).trim(), data);
+
     res.json({
       success: true,
-      data: buildMlUrlReport(String(url).trim(), ml),
+      data,
     });
   } catch (error) {
     console.error("ML URL Error:", error);
@@ -391,6 +515,7 @@ app.post("/analyze", async (req, res) => {
     }
 
     const data = await callOpenAiJson(ANALYZE_PROMPT, text);
+    recordAnalysisIncident(text, data);
 
     res.json({
       success: true,
@@ -436,13 +561,16 @@ app.post("/analyze-file", upload.single("file"), async (req, res) => {
       });
     }
 
+    const responseData = {
+      ...data,
+      fileName: originalname,
+      fileType: mimetype,
+    };
+    recordAnalysisIncident(`[file: ${originalname}]`, responseData);
+
     res.json({
       success: true,
-      data: {
-        ...data,
-        fileName: originalname,
-        fileType: mimetype,
-      },
+      data: responseData,
     });
   } catch (error) {
     console.error("File Analysis Error:", error);
@@ -476,6 +604,106 @@ app.use((err, _req, res, next) => {
   }
 
   return next();
+});
+
+app.post("/soc-report", async (req, res) => {
+  try {
+    const { text, contentType, triage } = req.body;
+
+    if (!text || !String(text).trim()) {
+      return res.status(400).json({
+        success: false,
+        error: "No evidence text provided",
+      });
+    }
+
+    const result = await runSocReport({
+      text: String(text).trim(),
+      contentType: contentType || "Message",
+      triage: triage || {},
+    });
+
+    if (!result.success) {
+      return res.status(500).json({
+        success: false,
+        error: result.error || "SOC report generation failed",
+      });
+    }
+
+    res.json({
+      success: true,
+      data: result.data,
+    });
+  } catch (error) {
+    console.error("SOC Report Error:", error);
+
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+});
+
+app.post("/api/financial-forecast", async (req, res) => {
+  try {
+    const {
+      text,
+      riskScore,
+      classification,
+      estimatedLossSAR,
+      riskBreakdown,
+      contentType,
+    } = req.body;
+
+    const score = Number(riskScore) || 0;
+    const resolvedClassification =
+      classification || analytics.classificationFromScore(score);
+    const estimatedLoss =
+      estimatedLossSAR ??
+      analytics.estimateFinancialLoss(resolvedClassification, String(text || ""));
+
+    const result = await runFinancialForecast({
+      text: String(text || ""),
+      riskScore: score,
+      classification: resolvedClassification,
+      estimatedLossSAR: estimatedLoss,
+      riskBreakdown: riskBreakdown || {},
+      contentType: contentType || "Message",
+    });
+
+    if (!result.success) {
+      return res.status(500).json({
+        success: false,
+        error: result.error || "Financial forecast failed",
+      });
+    }
+
+    res.json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    console.error("Financial Forecast Error:", error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+});
+
+app.get("/api/analytics", (_req, res) => {
+  try {
+    res.json({
+      success: true,
+      metrics: analytics.getMetrics(),
+    });
+  } catch (error) {
+    console.error("Analytics Error:", error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
 });
 
 app.post("/chat", async (req, res) => {

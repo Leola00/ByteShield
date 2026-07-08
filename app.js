@@ -19,6 +19,11 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
   ];
 
   let lastAnalysisContext = '';
+  let lastSocReport = null;
+  let lastUserReport = null;
+  let lastEvidenceText = '';
+  let lastContentType = 'Message';
+  let activeMode = 'user';
   let chatHistory = [];
 
   function getApiUrl(path) {
@@ -34,6 +39,18 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
 
   function getAnalyzeFileUrl() {
     return getApiUrl('/analyze-file');
+  }
+
+  function getSocReportUrl() {
+    return getApiUrl('/soc-report');
+  }
+
+  function getAnalyticsUrl() {
+    return getApiUrl('/api/analytics');
+  }
+
+  function getFinancialForecastUrl() {
+    return getApiUrl('/api/financial-forecast');
   }
 
   function getPredictUrlEndpoint() {
@@ -174,12 +191,30 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
   const byteshieldPanel = document.getElementById('byteshield-panel');
   const openByteshield = document.getElementById('open-byteshield');
   const closeByteshield = document.getElementById('close-byteshield');
+  const alinmaHeroTitle = document.getElementById('alinma-hero-title');
+  const alinmaHeroDesc = document.getElementById('alinma-hero-desc');
+  const byteshieldCardSublabel = document.getElementById('byteshield-card-sublabel');
+  const bsHeaderModeBadge = document.getElementById('bs-header-mode-badge');
+
+  const MAIN_HERO = {
+    user: {
+      title: 'الوصول السريع إلى الخدمات الأساسية',
+      desc: 'وفر الوقت مع إمكانية الوصول الفوري إلى خدمات الإنماء الرئيسية',
+      sublabel: 'فحص الاحتيال والتصيد',
+    },
+    soc: {
+      title: 'مركز عمليات الأمن — SOC',
+      desc: 'تحليل الحوادث، تقارير MITRE ATT&CK، مؤشرات الاختراق، وخطط الاحتواء — للمحللين الأمنيين.',
+      sublabel: 'لوحة SOC — تقارير الحوادث',
+    },
+  };
 
   openByteshield.addEventListener('click', () => {
     alinmaPage.hidden = true;
     byteshieldPanel.hidden = false;
     document.body.style.overflow = 'hidden';
     byteshieldPanel.scrollTop = 0;
+    updateResultsVisibility();
   });
 
   closeByteshield.addEventListener('click', () => {
@@ -202,8 +237,11 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
   const panels = document.querySelectorAll('.tab-panel');
   const btnScan = document.getElementById('btn-scan');
   const btnSample = document.getElementById('btn-sample');
-  const results = document.getElementById('results');
+  const resultsUser = document.getElementById('results-user');
+  const resultsSoc = document.getElementById('results-soc');
   const resultsPlaceholder = document.getElementById('results-placeholder');
+  const resultsPlaceholderTitle = document.getElementById('results-placeholder-title');
+  const resultsPlaceholderHint = document.getElementById('results-placeholder-hint');
   const uploadZone = document.getElementById('upload-zone');
   const uploadTrigger = document.getElementById('upload-trigger');
   const inputScreenshot = document.getElementById('input-screenshot');
@@ -225,6 +263,179 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
   const chatInput = document.getElementById('chat-input');
   const btnChatSend = document.getElementById('btn-chat-send');
   const supportContacts = document.getElementById('support-contacts');
+  const modeTabs = document.querySelectorAll('.mode-tab');
+  const bsIntroUser = document.getElementById('bs-intro-user');
+  const bsIntroSoc = document.getElementById('bs-intro-soc');
+  const byteshieldPanelEl = document.getElementById('byteshield-panel');
+  const socReportEl = document.getElementById('soc-report');
+  const socLoadingEl = document.getElementById('soc-loading');
+  const socEmptyEl = document.getElementById('soc-empty');
+  const recommendCard = document.getElementById('recommend-card');
+  const socAnalyticsEl = document.getElementById('soc-analytics');
+
+  modeTabs.forEach((tab) => {
+    tab.addEventListener('click', () => switchMode(tab.dataset.mode));
+  });
+
+  function switchMode(mode) {
+    activeMode = mode;
+
+    modeTabs.forEach((tab) => {
+      const active = tab.dataset.mode === mode;
+      tab.classList.toggle('mode-tab--active', active);
+      tab.setAttribute('aria-selected', active);
+    });
+
+    if (bsIntroUser) bsIntroUser.hidden = mode !== 'user';
+    if (bsIntroSoc) bsIntroSoc.hidden = mode !== 'soc';
+
+    const hero = MAIN_HERO[mode] || MAIN_HERO.user;
+    if (alinmaHeroTitle) alinmaHeroTitle.textContent = hero.title;
+    if (alinmaHeroDesc) alinmaHeroDesc.textContent = hero.desc;
+    if (byteshieldCardSublabel) byteshieldCardSublabel.textContent = hero.sublabel;
+    if (alinmaPage) alinmaPage.classList.toggle('alinma-page--soc-mode', mode === 'soc');
+    if (openByteshield) openByteshield.classList.toggle('service-card--byteshield-soc', mode === 'soc');
+    if (bsHeaderModeBadge) {
+      bsHeaderModeBadge.textContent = mode === 'soc' ? 'SOC' : 'شخصي';
+      bsHeaderModeBadge.classList.toggle('bs-header__mode-badge--soc', mode === 'soc');
+    }
+
+    if (byteshieldPanelEl) {
+      byteshieldPanelEl.classList.toggle('byteshield-panel--soc-mode', mode === 'soc');
+    }
+
+    if (recommendCard && lastUserReport) {
+      recommendCard.hidden = mode !== 'user';
+    }
+
+    if (socAnalyticsEl) {
+      socAnalyticsEl.hidden = mode !== 'soc';
+      if (mode === 'soc') updateFinancialImpactDashboard();
+    }
+
+    updateResultsVisibility();
+  }
+
+  async function updateFinancialImpactDashboard() {
+    if (activeMode !== 'soc') return;
+
+    const totalEl = document.getElementById('total-detected-incidents');
+    const highEl = document.getElementById('high-risk-incidents');
+    const savedEl = document.getElementById('total-saved-money');
+    if (!totalEl || !highEl || !savedEl) return;
+
+    try {
+      const response = await fetch(getAnalyticsUrl());
+      const result = await response.json();
+
+      if (!response.ok || !result.success) return;
+
+      const metrics = result.metrics;
+      totalEl.textContent = String(metrics.totalIncidents ?? 0);
+      highEl.textContent = String(metrics.highRiskCount ?? 0);
+      savedEl.textContent = new Intl.NumberFormat('ar-SA', {
+        style: 'currency',
+        currency: 'SAR',
+        maximumFractionDigits: 0,
+      }).format(metrics.totalSavedMoneySAR ?? 0);
+    } catch (err) {
+      console.error('Failed to fetch financial impact data:', err);
+    }
+  }
+
+  function formatSar(amount) {
+    return new Intl.NumberFormat('ar-SA', {
+      style: 'currency',
+      currency: 'SAR',
+      maximumFractionDigits: 0,
+    }).format(amount ?? 0);
+  }
+
+  function renderFinancialForecast(forecast) {
+    if (!forecast || activeMode !== 'soc') return;
+
+    const lossEl = document.getElementById('forecast-predicted-loss');
+    const levelEl = document.getElementById('forecast-risk-level');
+    const detailEl = document.getElementById('soc-forecast-detail');
+    const summaryEl = document.getElementById('forecast-summary-ar');
+    const scoreEl = document.getElementById('forecast-risk-score');
+    const probEl = document.getElementById('forecast-fraud-prob');
+    const baselineEl = document.getElementById('forecast-baseline-loss');
+
+    if (lossEl) lossEl.textContent = formatSar(forecast.predictedLossSAR);
+    if (levelEl) levelEl.textContent = `مستوى التوقع: ${forecast.forecastLevel || '—'}`;
+    if (summaryEl) summaryEl.textContent = forecast.forecastSummaryAr || '';
+    if (scoreEl) scoreEl.textContent = String(forecast.financialRiskScore ?? '—');
+    if (probEl) probEl.textContent = `${Math.round((forecast.fraudProbability || 0) * 100)}%`;
+    if (baselineEl) baselineEl.textContent = formatSar(forecast.baselineLossSAR);
+    if (detailEl) detailEl.hidden = false;
+  }
+
+  async function fetchFinancialForecast(text, contentType, report) {
+    if (activeMode !== 'soc') return;
+
+    try {
+      const response = await fetch(getFinancialForecastUrl(), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text,
+          contentType,
+          riskScore: report.score,
+          classification: report.tier?.statusEn || report.tier?.tierLabel,
+          riskBreakdown: report.riskBreakdown,
+        }),
+      });
+
+      const result = await response.json();
+      if (!response.ok || !result.success) return;
+
+      renderFinancialForecast(result.data);
+    } catch (err) {
+      console.error('Failed to fetch financial forecast:', err);
+    }
+  }
+
+  function updateResultsVisibility() {
+    const hasUser = !!lastUserReport;
+    const hasSoc = !!lastSocReport;
+    const socLoading = socLoadingEl && !socLoadingEl.hidden;
+
+    if (activeMode === 'user') {
+      if (resultsSoc) resultsSoc.hidden = true;
+      if (hasUser) {
+        if (resultsPlaceholder) resultsPlaceholder.hidden = true;
+        if (resultsUser) resultsUser.hidden = false;
+        if (recommendCard) recommendCard.hidden = false;
+      } else {
+        if (resultsPlaceholder) resultsPlaceholder.hidden = false;
+        if (resultsUser) resultsUser.hidden = true;
+        if (resultsPlaceholderTitle) resultsPlaceholderTitle.textContent = 'ستظهر النتائج هنا';
+        if (resultsPlaceholderHint) {
+          resultsPlaceholderHint.textContent = 'أرسل المحتوى للحصول على تقرير مبسّط: آمن أم احتيال؟';
+        }
+      }
+    } else {
+      if (resultsUser) resultsUser.hidden = true;
+      if (recommendCard) recommendCard.hidden = true;
+      if (hasSoc || socLoading) {
+        if (resultsPlaceholder) resultsPlaceholder.hidden = true;
+        if (resultsSoc) resultsSoc.hidden = false;
+      } else if (hasUser) {
+        if (resultsPlaceholder) resultsPlaceholder.hidden = true;
+        if (resultsSoc) resultsSoc.hidden = false;
+        if (socEmptyEl) socEmptyEl.hidden = false;
+        if (socLoadingEl) socLoadingEl.hidden = true;
+      } else {
+        if (resultsPlaceholder) resultsPlaceholder.hidden = false;
+        if (resultsSoc) resultsSoc.hidden = true;
+        if (resultsPlaceholderTitle) resultsPlaceholderTitle.textContent = 'تقرير SOC';
+        if (resultsPlaceholderHint) {
+          resultsPlaceholderHint.textContent = 'شغّل التحليل لإنشاء تقرير حادث MITRE ATT&CK و IoC.';
+        }
+      }
+    }
+  }
 
   tabs.forEach((tab) => {
     tab.addEventListener('click', () => switchTab(tab.dataset.tab));
@@ -535,6 +746,8 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
         ? 'جاري تحليل الملف… (قد يستغرق دقيقة)'
         : 'جاري التحليل…';
 
+    showSocLoading();
+
     try {
       if (activeTab === 'screenshot') {
         const formData = new FormData();
@@ -574,8 +787,7 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
         const ai = result.data;
         const score = Number(ai.riskScore) || 0;
         const report = normalizeAiReport(ai, score, input.text);
-        lastAnalysisContext = buildChatContext(input.text, report);
-        renderResults(report);
+        finalizeAnalysis(input.text, input.type, report);
         return;
       }
 
@@ -591,8 +803,7 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
         });
       } catch {
         const report = buildLocalReport(input.text, input.type);
-        lastAnalysisContext = buildChatContext(input.text, report);
-        renderResults(report);
+        finalizeAnalysis(input.text, input.type, report);
         showToast('تعذر الاتصال بالخادم — تم استخدام التحليل المحلي');
         return;
       }
@@ -603,8 +814,7 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
       } catch {
         if (activeTab !== 'url') {
           const report = buildLocalReport(input.text, input.type);
-          lastAnalysisContext = buildChatContext(input.text, report);
-          renderResults(report);
+          finalizeAnalysis(input.text, input.type, report);
           showToast('تعذر قراءة رد الخادم — تم استخدام التحليل المحلي');
           return;
         }
@@ -617,8 +827,7 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
 
         if (activeTab !== 'url' || isOpenAiKeyError(message)) {
           const report = buildLocalReport(input.text, input.type);
-          lastAnalysisContext = buildChatContext(input.text, report);
-          renderResults(report);
+          finalizeAnalysis(input.text, input.type, report);
           if (isOpenAiKeyError(message)) {
             showToast('مفتاح OpenAI غير صالح — تم استخدام التحليل المحلي. حدّث backend/.env');
           } else {
@@ -631,8 +840,7 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
           showToast('تم تجاوز حد OpenAI — انتظر دقيقة وحاول مجدداً');
         } else if (activeTab === 'url') {
           const report = buildLocalReport(input.text, input.type);
-          lastAnalysisContext = buildChatContext(input.text, report);
-          renderResults(report);
+          finalizeAnalysis(input.text, input.type, report);
           showToast('تعذر تشغيل نموذج التعلم العميق — تم استخدام التحليل المحلي');
         } else {
           showToast(message);
@@ -643,8 +851,7 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
       const ai = result.data;
       const score = Number(ai.riskScore) || 0;
       const report = normalizeAiReport(ai, score, input.text);
-      lastAnalysisContext = buildChatContext(input.text, report);
-      renderResults(report);
+      finalizeAnalysis(input.text, input.type, report);
     } catch (error) {
       console.error(error);
       showToast('تعذر الاتصال بالخادم — افتح http://localhost:3000 وشغّل الباكند من مجلد backend');
@@ -723,15 +930,295 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     ].join('\n');
   }
 
+  function showSocLoading() {
+    if (socLoadingEl) socLoadingEl.hidden = false;
+    if (socReportEl) { socReportEl.hidden = true; socReportEl.innerHTML = ''; }
+    if (socEmptyEl) socEmptyEl.hidden = true;
+    if (resultsSoc) resultsSoc.hidden = activeMode === 'soc';
+    updateResultsVisibility();
+  }
+
+  function buildLocalSocReport(text, report) {
+    const score = report.score || 50;
+    const severity = score >= 75 ? 'Critical' : score >= 61 ? 'High' : score >= 31 ? 'Medium' : 'Low';
+    const urls = text.match(/https?:\/\/[^\s<>"']+/gi) || [];
+    const emails = text.match(/[\w.+-]+@[\w-]+\.[\w.-]+/gi) || [];
+
+    return {
+      reportId: `BS-IR-LOCAL-${Date.now()}`,
+      generatedAt: new Date().toISOString(),
+      reportVersion: '1.0',
+      frameworks: ['NIST SP 800-61', 'MITRE ATT&CK'],
+      incident: {
+        title: 'Suspected phishing / fraud incident (local triage)',
+        executiveSummary: report.shortExplanation || 'Local pattern-based triage without OpenAI SOC engine.',
+        executiveSummaryAr: report.shortExplanation || 'تحليل محلي — فعّل OpenAI لإنشاء تقرير SOC كامل.',
+        severity,
+        status: score >= 61 ? 'Open' : 'Triaging',
+        classification: report.threatType || 'Phishing',
+        confidence: report.confidence || 60,
+        riskScore: score,
+        attackVector: 'Social engineering via unsolicited message',
+        impactAssessment: score >= 61 ? 'Potential credential theft or financial fraud' : 'Limited observed impact',
+        affectedAssets: ['User messaging channel', 'Potential credentials'],
+        timeline: [{ phase: 'Delivery', timestamp: 'Estimated', description: 'Suspicious content submitted for analysis' }],
+      },
+      mitreAttack: {
+        tactics: score >= 61 ? ['Initial Access', 'Credential Access'] : ['Initial Access'],
+        techniques: score >= 61
+          ? [{ id: 'T1566.002', name: 'Phishing: Spearphishing Link', tactic: 'Initial Access', description: 'Suspicious link or credential request detected', confidence: 'Medium' }]
+          : [{ id: 'T1566', name: 'Phishing', tactic: 'Initial Access', description: 'Generic phishing indicators', confidence: 'Low' }],
+        killChainPhase: 'Delivery',
+      },
+      indicatorsOfCompromise: {
+        urls: urls.map((u) => ({ value: u, severity: 'high', context: 'Extracted from evidence' })),
+        domains: [],
+        ipAddresses: [],
+        emailAddresses: emails.map((e) => ({ value: e, severity: 'medium', context: 'Sender or contact in evidence' })),
+        phoneNumbers: [],
+        fileHashes: [],
+        other: [],
+      },
+      containmentPlaybook: {
+        priority: score >= 61 ? 'P1' : 'P2',
+        immediateActions: (report.actionChecklist || []).slice(0, 4).map((action, i) => ({
+          step: i + 1,
+          action,
+          owner: 'SOC Analyst',
+          estimatedTime: '15 min',
+        })),
+        shortTermActions: [{ step: 1, action: 'Block IoCs at email/web proxy', owner: 'Network Team', estimatedTime: '1 hr' }],
+        longTermActions: [{ step: 1, action: 'User awareness notification if campaign-wide', owner: 'IR Lead', estimatedTime: '1 day' }],
+        escalationCriteria: score >= 61 ? ['Confirmed credential compromise', 'Multiple user reports'] : ['Risk score exceeds threshold'],
+        communicationPlan: 'Notify security lead; preserve evidence for IR ticket.',
+      },
+      detectionAndResponse: {
+        detectionRules: [{ name: 'Phishing keyword + URL', logic: 'Match urgency/OTP keywords with external URL', dataSource: 'Email Gateway' }],
+        recommendedTools: ['SIEM', 'Email sandbox', 'Web proxy blocklist'],
+        huntingQueries: ['Search proxy logs for submitted URLs/domains'],
+      },
+      references: ['MITRE ATT&CK T1566', 'NIST SP 800-61'],
+      analystNotes: 'Generated by local fallback — connect OpenAI for full enterprise SOC report.',
+      source: 'local',
+    };
+  }
+
+  async function fetchAndRenderSocReport(text, contentType, report) {
+    showSocLoading();
+    lastEvidenceText = text;
+    lastContentType = contentType;
+
+    const triage = {
+      riskScore: report.score,
+      classification: report.tier?.statusEn || report.tier?.tierLabel,
+      threatType: report.threatType,
+      reasoning: report.reasoning,
+    };
+
+    try {
+      const response = await fetch(getSocReportUrl(), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, contentType, triage }),
+      });
+
+      let result;
+      try { result = await response.json(); } catch {
+        lastSocReport = buildLocalSocReport(text, report);
+        renderSocReport(lastSocReport);
+        return;
+      }
+
+      if (!response.ok || !result.success) {
+        lastSocReport = buildLocalSocReport(text, report);
+        renderSocReport(lastSocReport);
+        return;
+      }
+
+      lastSocReport = result.data;
+      renderSocReport(lastSocReport);
+    } catch {
+      lastSocReport = buildLocalSocReport(text, report);
+      renderSocReport(lastSocReport);
+    }
+  }
+
+  function socSeverityClass(severity) {
+    const s = String(severity || '').toLowerCase();
+    if (s.includes('crit')) return 'critical';
+    if (s.includes('high')) return 'high';
+    if (s.includes('med')) return 'medium';
+    if (s.includes('info')) return 'info';
+    return 'low';
+  }
+
+  function renderIocTable(title, items) {
+    if (!items || !items.length) return '';
+    return `
+      <div class="soc-section">
+        <h4 class="soc-section__title">${escapeHtml(title)}</h4>
+        <div class="soc-ioc-table-wrap">
+          <table class="soc-ioc-table">
+            <thead><tr><th>Indicator</th><th>Severity</th><th>Context</th></tr></thead>
+            <tbody>
+              ${items.map((item) => `
+                <tr>
+                  <td class="soc-ioc-table__value" dir="ltr">${escapeHtml(item.value || item)}</td>
+                  <td><span class="soc-sev soc-sev--${socSeverityClass(item.severity || 'medium')}">${escapeHtml(item.severity || 'medium')}</span></td>
+                  <td>${escapeHtml(item.context || '—')}</td>
+                </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>`;
+  }
+
+  function renderPlaybookSteps(title, steps) {
+    if (!steps || !steps.length) return '';
+    return `
+      <div class="soc-section">
+        <h4 class="soc-section__title">${escapeHtml(title)}</h4>
+        <ol class="soc-playbook">
+          ${steps.map((step) => `
+            <li class="soc-playbook__step">
+              <div class="soc-playbook__head">
+                <span class="soc-playbook__num">${step.step || '•'}</span>
+                <strong>${escapeHtml(step.action || step)}</strong>
+              </div>
+              ${step.owner ? `<span class="soc-playbook__meta">Owner: ${escapeHtml(step.owner)} · ETA: ${escapeHtml(step.estimatedTime || 'N/A')}</span>` : ''}
+            </li>`).join('')}
+        </ol>
+      </div>`;
+  }
+
+  function renderSocReport(soc) {
+    if (!socReportEl) return;
+
+    if (socLoadingEl) socLoadingEl.hidden = true;
+    if (socEmptyEl) socEmptyEl.hidden = true;
+    socReportEl.hidden = false;
+    updateResultsVisibility();
+
+    const inc = soc.incident || {};
+    const mitre = soc.mitreAttack || {};
+    const ioc = soc.indicatorsOfCompromise || {};
+    const playbook = soc.containmentPlaybook || {};
+    const detection = soc.detectionAndResponse || {};
+    const sevClass = socSeverityClass(inc.severity);
+
+    socReportEl.innerHTML = `
+      <header class="soc-header">
+        <div class="soc-header__meta">
+          <span class="soc-report-id" dir="ltr">${escapeHtml(soc.reportId || 'BS-IR-UNKNOWN')}</span>
+          <span class="soc-report-time">${escapeHtml(soc.generatedAt ? new Date(soc.generatedAt).toLocaleString('en-GB') : '')}</span>
+        </div>
+        <h3 class="soc-header__title">${escapeHtml(inc.title || 'Security Incident Report')}</h3>
+        <div class="soc-header__badges">
+          <span class="soc-sev soc-sev--${sevClass} soc-sev--lg">${escapeHtml(inc.severity || 'Unknown')}</span>
+          <span class="soc-badge soc-badge--status">${escapeHtml(inc.status || 'Open')}</span>
+          <span class="soc-badge">${escapeHtml(inc.classification || 'Unclassified')}</span>
+          <span class="soc-badge soc-badge--priority">${escapeHtml(playbook.priority || 'P2')}</span>
+        </div>
+      </header>
+
+      ${inc.executiveSummaryAr ? `<p class="soc-summary-ar">${escapeHtml(inc.executiveSummaryAr)}</p>` : ''}
+      <p class="soc-summary">${escapeHtml(inc.executiveSummary || inc.summary || '')}</p>
+
+      <div class="soc-metrics">
+        <div class="soc-metric"><span>Risk Score</span><strong>${escapeHtml(String(inc.riskScore ?? '—'))}/100</strong></div>
+        <div class="soc-metric"><span>Confidence</span><strong>${escapeHtml(String(inc.confidence ?? '—'))}%</strong></div>
+        <div class="soc-metric"><span>Attack Vector</span><strong>${escapeHtml(inc.attackVector || '—')}</strong></div>
+        <div class="soc-metric"><span>Kill Chain</span><strong>${escapeHtml(mitre.killChainPhase || '—')}</strong></div>
+      </div>
+
+      <div class="soc-section">
+        <h4 class="soc-section__title">Impact Assessment</h4>
+        <p class="soc-text">${escapeHtml(inc.impactAssessment || '—')}</p>
+        ${inc.affectedAssets?.length ? `<ul class="soc-tags">${inc.affectedAssets.map((a) => `<li>${escapeHtml(a)}</li>`).join('')}</ul>` : ''}
+      </div>
+
+      <div class="soc-section">
+        <h4 class="soc-section__title">MITRE ATT&CK Mapping</h4>
+        <div class="soc-mitre-tactics">
+          ${(mitre.tactics || []).map((t) => `<span class="soc-mitre-tactic">${escapeHtml(t)}</span>`).join('') || '<span class="soc-muted">No tactics mapped</span>'}
+        </div>
+        <div class="soc-mitre-techniques">
+          ${(mitre.techniques || []).map((tech) => `
+            <div class="soc-mitre-card">
+              <div class="soc-mitre-card__id" dir="ltr">${escapeHtml(tech.id || 'T????')}</div>
+              <div class="soc-mitre-card__body">
+                <strong>${escapeHtml(tech.name || '')}</strong>
+                <span class="soc-mitre-card__tactic">${escapeHtml(tech.tactic || '')}</span>
+                <p>${escapeHtml(tech.description || '')}</p>
+                <span class="soc-mitre-card__conf">Confidence: ${escapeHtml(tech.confidence || 'Medium')}</span>
+              </div>
+            </div>`).join('') || '<p class="soc-muted">No techniques mapped</p>'}
+        </div>
+      </div>
+
+      ${renderIocTable('URLs', ioc.urls)}
+      ${renderIocTable('Domains', ioc.domains)}
+      ${renderIocTable('IP Addresses', ioc.ipAddresses)}
+      ${renderIocTable('Email Addresses', ioc.emailAddresses)}
+      ${renderIocTable('Phone Numbers', ioc.phoneNumbers)}
+
+      ${renderPlaybookSteps('Immediate Containment', playbook.immediateActions)}
+      ${renderPlaybookSteps('Short-Term Actions', playbook.shortTermActions)}
+      ${renderPlaybookSteps('Long-Term Actions', playbook.longTermActions)}
+
+      ${playbook.escalationCriteria?.length ? `
+        <div class="soc-section">
+          <h4 class="soc-section__title">Escalation Criteria</h4>
+          <ul class="soc-list">${playbook.escalationCriteria.map((e) => `<li>${escapeHtml(e)}</li>`).join('')}</ul>
+        </div>` : ''}
+
+      ${playbook.communicationPlan ? `
+        <div class="soc-section">
+          <h4 class="soc-section__title">Communication Plan</h4>
+          <p class="soc-text">${escapeHtml(playbook.communicationPlan)}</p>
+        </div>` : ''}
+
+      ${detection.detectionRules?.length ? `
+        <div class="soc-section">
+          <h4 class="soc-section__title">Detection Rules</h4>
+          ${detection.detectionRules.map((rule) => `
+            <div class="soc-detection-card">
+              <strong>${escapeHtml(rule.name || 'Rule')}</strong>
+              <code dir="ltr">${escapeHtml(rule.logic || '')}</code>
+              <span class="soc-detection-card__src">Source: ${escapeHtml(rule.dataSource || 'SIEM')}</span>
+            </div>`).join('')}
+        </div>` : ''}
+
+      ${soc.analystNotes ? `
+        <div class="soc-section soc-section--notes">
+          <h4 class="soc-section__title">Analyst Notes</h4>
+          <p class="soc-text">${escapeHtml(soc.analystNotes)}</p>
+        </div>` : ''}
+
+      ${soc.source === 'local' ? '<p class="soc-fallback-note">⚠ Local fallback report — configure OpenAI for full enterprise SOC output.</p>' : ''}
+    `;
+
+    updateResultsVisibility();
+  }
+
+  function finalizeAnalysis(text, contentType, report) {
+    lastUserReport = report;
+    lastAnalysisContext = buildChatContext(text, report);
+    renderResults(report);
+    fetchAndRenderSocReport(text, contentType, report);
+    updateFinancialImpactDashboard();
+    fetchFinancialForecast(text, contentType, report);
+    updateResultsVisibility();
+  }
+
   function renderResults(report) {
     const { score, tier, shortExplanation, confidence, reasoning,
       actionChecklist, riskBreakdown, detailedAnalysis, detectedBanks, bankAdvice, securityTips } = report;
 
     resultsPlaceholder.hidden = true;
-    results.hidden = false;
+    if (resultsUser) resultsUser.hidden = activeMode !== 'user';
 
-    const recommendCard = document.getElementById('recommend-card');
-    recommendCard.hidden = false;
+    if (recommendCard) recommendCard.hidden = activeMode !== 'user';
 
     document.getElementById('results-time').textContent = new Date().toLocaleString('ar-SA');
     document.getElementById('risk-score').textContent = score;
