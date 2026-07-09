@@ -388,28 +388,37 @@ function buildMlUrlReport(url, ml) {
 
   const statusMessage =
     score <= 30
-      ? "✅ يبدو الرابط آمناً وفق نموذج التعلم العميق"
+      ? "✅ يبدو الرابط آمناً نسبياً"
       : score <= 60
-        ? "⚠️ الرابط مشبوه وفق نموذج التعلم العميق"
-        : "🚨 احتمال عالٍ أن الرابط تصيّد وفق نموذج التعلم العميق";
+        ? "⚠️ الرابط مشبوه — تحقق قبل النقر"
+        : "🚨 احتمال عالٍ أن الرابط تصيّد";
 
   const shortExplanation =
     score <= 30
-      ? `حلّل نموذج ByteShield Deep Learning الرابط وأعطاه درجة ${score}/100 (منخفض المخاطر). احتمال التصيّد ${Math.round(probability * 100)}%.`
+      ? "يبدو أن هذا الرابط آمناً نسبياً. تحقق دائماً من العنوان في المتصفح قبل إدخال أي بيانات."
       : score <= 60
-        ? `حلّل نموذج ByteShield Deep Learning الرابط وأعطاه درجة ${score}/100 (مشبوه). احتمال التصيّد ${Math.round(probability * 100)}%.`
-        : `حلّل نموذج ByteShield Deep Learning الرابط وأعطاه درجة ${score}/100 (خطر مرتفع). احتمال التصيّد ${Math.round(probability * 100)}%.`;
+        ? "هذا الرابط يحتوي على علامات مشبوهة. لا تنقر عليه قبل التأكد من مصدره عبر القنوات الرسمية."
+        : "هذا الرابط يحمل احتمالاً عالياً لتصيّد احتيالي. لا تفتحه ولا تُدخل بياناتك الشخصية أو المصرفية.";
 
   const reasoning =
     score <= 30
-      ? ["لم يُرصد نمط URL مشبوه قوي", "الخصائص الهيكلية للرابط قريبة من الروابط الآمنة"]
+      ? ["لم يُرصد نمط مشبوه قوي في عنوان الرابط", "يبدو قريباً من الروابط الآمنة — تحقق بشكل مستقل"]
       : score <= 60
-        ? ["بعض خصائص الرابط تشبه أنماط التصيّد", "يُنصح بالتحقق قبل النقر"]
+        ? ["بعض خصائص الرابط تشبه مواقع التصيّد", "يُنصح بالتحقق قبل النقر أو إدخال أي بيانات"]
         : [
-            "خصائص الرابط تطابق أنماط تصيّد معروفة",
-            "احتمال التصيّد مرتفع وفق النموذج المدرب",
-            "لا تنقر على الرابط قبل التحقق عبر القنوات الرسمية",
+            "عنوان الرابط يشبه مواقع بنكية أو خدمات موثوقة بشكل مضلل",
+            "لا تنقر على الرابط قبل التحقق عبر تطبيق البنك أو الموقع الرسمي",
+            "لا تشارك رمز التحقق أو كلمة المرور عبر أي رابط مستلم",
           ];
+
+  const detailedAnalysis = [
+    shortExplanation,
+    "",
+    `الرابط الذي تم فحصه: ${url}`,
+    "",
+    "ما الذي لاحظناه:",
+    ...reasoning.map((line) => `• ${line}`),
+  ].join("\n");
 
   return {
     riskScore: score,
@@ -444,7 +453,7 @@ function buildMlUrlReport(url, ml) {
       socialEngineeringIndicators: Math.round(score * 0.5),
       urgencyDetection: Math.round(score * 0.35),
     },
-    detailedAnalysis: `${shortExplanation}\n\nالرابط المحلّل: ${url}\nالنموذج: phishing_dl_model.h5 (${ml.featureCount || 66} خاصية).`,
+    detailedAnalysis,
     detectedBanks: [],
     bankAdvice: "",
     threatType: "phishing",
@@ -950,4 +959,8 @@ const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
   console.log(`🚀 ByteShield running on http://localhost:${PORT}`);
+  if (openai) {
+    console.log("✅ OpenAI configured — /analyze, /chat, and Fraud Ops enabled");
+  }
+  console.log("✅ Fraud Operations API ready at /api/cases");
 });

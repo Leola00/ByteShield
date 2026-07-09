@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#0a1628" />
   <meta name="description" content="مصرف الإنماء – ByteShield: فحص ذكي للاحتيال والتصيد الاحتيالي" />
   <title>الإنماء | ByteShield</title>
-  <link rel="stylesheet" href="styles.css?v=13" />
+  <link rel="stylesheet" href="styles.css?v=17" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -37,7 +37,7 @@
             <button type="button" class="mode-tab mode-tab--header mode-tab--active" data-mode="user" role="tab" aria-selected="true">شخصي</button>
             <button type="button" class="mode-tab mode-tab--header mode-tab--soc" data-mode="fraud" role="tab" aria-selected="false">Fraud Ops</button>
           </div>
-          <button type="button" class="btn-menu" aria-label="القائمة">
+          <button type="button" class="btn-menu" id="btn-alinma-menu" aria-label="القائمة" aria-expanded="false" aria-controls="nav-drawer">
             <span></span><span></span><span></span>
           </button>
         </div>
@@ -126,7 +126,7 @@
 
       <div class="bs-header__actions">
         <span class="bs-header__mode-badge" id="bs-header-mode-badge">شخصي</span>
-        <button type="button" class="bs-menu" aria-label="القائمة">
+        <button type="button" class="bs-menu" id="bs-menu" aria-label="القائمة" aria-expanded="false" aria-controls="nav-drawer">
           <span></span><span></span><span></span>
         </button>
       </div>
@@ -205,6 +205,7 @@
               <span class="card-panel__icon card-panel__icon--safe">✅</span>
               <h2 class="section-title">التوصية</h2>
             </div>
+            <p class="indicator-context" id="recommend-context"></p>
             <p class="recommend-card__summary" id="recommend-summary"></p>
             <h3 class="recommend-card__subtitle">ماذا يمكنك أن تفعل؟</h3>
             <ul class="recommend-checklist" id="recommend-checklist"></ul>
@@ -251,6 +252,7 @@
                 <div>
                   <strong>التوصيات</strong>
                   <p id="stat-rec-text">—</p>
+                  <p class="stat-card__context" id="stat-rec-context"></p>
                 </div>
               </div>
               <div class="stat-card stat-card--warn" id="stat-warn">
@@ -258,6 +260,7 @@
                 <div>
                   <strong>مؤشرات الخطر</strong>
                   <p id="stat-warn-text">—</p>
+                  <p class="stat-card__context" id="stat-warn-context"></p>
                 </div>
               </div>
             </div>
@@ -504,6 +507,80 @@
 
   <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 
+  <div class="nav-drawer-backdrop" id="nav-drawer-backdrop" hidden>
+    <aside class="nav-drawer" id="nav-drawer" role="dialog" aria-modal="true" aria-labelledby="nav-drawer-title">
+      <header class="nav-drawer__header">
+        <button type="button" class="nav-drawer__close" id="nav-drawer-close" aria-label="إغلاق">×</button>
+        <div class="nav-drawer__brand">
+          <span class="nav-drawer__brand-ar">الإنماء</span>
+          <span class="nav-drawer__brand-en">alinma</span>
+        </div>
+        <h2 class="nav-drawer__title" id="nav-drawer-title">القائمة</h2>
+        <p class="nav-drawer__subtitle">الوصول إلى خدمات البنك و ByteShield</p>
+      </header>
+      <nav class="nav-drawer__body" aria-label="التنقل الرئيسي">
+        <section class="nav-drawer__section">
+          <h3 class="nav-drawer__section-title">خدمات البنك</h3>
+          <ul class="nav-drawer__list">
+            <li>
+              <button type="button" class="nav-drawer__item" data-nav="landing">
+                <span class="nav-drawer__item-icon" aria-hidden="true">🏠</span>
+                <span class="nav-drawer__item-text">الخدمات الرئيسية</span>
+              </button>
+            </li>
+            <li>
+              <button type="button" class="nav-drawer__item" data-nav="service" data-service-label="افتح حسابك الآن">
+                <span class="nav-drawer__item-icon" aria-hidden="true">📄</span>
+                <span class="nav-drawer__item-text">افتح حسابك الآن</span>
+              </button>
+            </li>
+            <li>
+              <button type="button" class="nav-drawer__item" data-nav="service" data-service-label="اطلب تمويلك الآن">
+                <span class="nav-drawer__item-icon" aria-hidden="true">💰</span>
+                <span class="nav-drawer__item-text">اطلب تمويلك الآن</span>
+              </button>
+            </li>
+            <li>
+              <button type="button" class="nav-drawer__item" data-nav="service" data-service-label="احجز موعدك الآن">
+                <span class="nav-drawer__item-icon" aria-hidden="true">📅</span>
+                <span class="nav-drawer__item-text">احجز موعدك الآن</span>
+              </button>
+            </li>
+            <li>
+              <button type="button" class="nav-drawer__item" data-nav="service" data-service-label="عروض أكثر">
+                <span class="nav-drawer__item-icon" aria-hidden="true">🎁</span>
+                <span class="nav-drawer__item-text">عروض &ldquo;أكثر&rdquo;</span>
+              </button>
+            </li>
+            <li>
+              <button type="button" class="nav-drawer__item" data-nav="service" data-service-label="مواقع الفروع والصرافات">
+                <span class="nav-drawer__item-icon" aria-hidden="true">📍</span>
+                <span class="nav-drawer__item-text">مواقع الفروع والصرافات</span>
+              </button>
+            </li>
+          </ul>
+        </section>
+        <section class="nav-drawer__section">
+          <h3 class="nav-drawer__section-title">ByteShield</h3>
+          <ul class="nav-drawer__list">
+            <li>
+              <button type="button" class="nav-drawer__item" data-nav="byteshield" data-mode="user">
+                <span class="nav-drawer__item-icon" aria-hidden="true">🛡️</span>
+                <span class="nav-drawer__item-text">شخصي — فحص الاحتيال</span>
+              </button>
+            </li>
+            <li>
+              <button type="button" class="nav-drawer__item nav-drawer__item--fraud" data-nav="byteshield" data-mode="fraud">
+                <span class="nav-drawer__item-icon" aria-hidden="true">🔍</span>
+                <span class="nav-drawer__item-text">Fraud Ops — Investigation Portal</span>
+              </button>
+            </li>
+          </ul>
+        </section>
+      </nav>
+    </aside>
+  </div>
+
   <div class="modal-backdrop" id="modal-backdrop" hidden></div>
 
   <div class="modal" id="chat-modal" hidden role="dialog" aria-labelledby="chat-modal-title">
@@ -532,6 +609,6 @@
     <div class="modal__body" id="support-contacts"></div>
   </div>
 
-  <script src="app.js?v=13"></script>
+  <script src="app.js?v=17"></script>
 </body>
 </html>

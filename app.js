@@ -18,6 +18,39 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     { key: 'financialFraudIndicators', label: 'المرفقات' },
   ];
 
+  const RECOMMEND_CONTEXT = {
+    low: 'المحتوى يبدو آمناً نسبياً — اتبع الخطوات أدناه للتأكد قبل التفاعل.',
+    medium: 'توجد علامات مشبوهة — راجع التوصيات قبل الرد أو النقر على أي رابط.',
+    high: 'خطر مرتفع — لا تشارك بياناتك واتبع الإجراءات الموصى بها فوراً.',
+  };
+
+  const STAT_REC_CONTEXT = {
+    low: 'لا يلزم إجراء عاجل — راقب حسابك كالمعتاد.',
+    medium: 'خذ وقتاً للتحقق قبل أي إجراء أو مشاركة معلومات.',
+    high: 'اتخذ الإجراءات الموصى بها فوراً وأبلغ البنك إن لزم.',
+  };
+
+  function scoreTierKey(score) {
+    const s = Number(score) || 0;
+    if (s <= 30) return 'low';
+    if (s <= 60) return 'medium';
+    return 'high';
+  }
+
+  function getWarnSummary(count) {
+    if (count === 0) return 'لم تُرصد مؤشرات واضحة';
+    if (count <= 2) return 'مؤشرات قليلة';
+    if (count <= 4) return 'مؤشرات متوسطة';
+    return 'مؤشرات عالية';
+  }
+
+  function getWarnContext(count) {
+    if (count === 0) return 'لم يُعثر على أنماط مشبوهة واضحة في النص أو الروابط.';
+    if (count <= 2) return `${count} علامة — قد تكون تحذيرات بسيطة أو صياغة غير اعتيادية.`;
+    if (count <= 4) return `${count} علامات — عدة مؤشرات تستدعي الحذر والتحقق.`;
+    return `${count} علامات — تركيبة قوية من مؤشرات الاحتيال الشائعة.`;
+  }
+
   const SAUDI_TZ = 'Asia/Riyadh';
 
   function formatSaudiDateTime(date = new Date()) {
@@ -285,10 +318,102 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     document.body.style.overflow = '';
   });
 
+  const navDrawerBackdrop = document.getElementById('nav-drawer-backdrop');
+  const navDrawer = document.getElementById('nav-drawer');
+  const navDrawerClose = document.getElementById('nav-drawer-close');
+  const btnAlinmaMenu = document.getElementById('btn-alinma-menu');
+  const btnBsMenu = document.getElementById('bs-menu');
+  const menuToggleButtons = [btnAlinmaMenu, btnBsMenu].filter(Boolean);
+
+  function syncBodyOverflow() {
+    if (!byteshieldPanel.hidden || (modalBackdrop && !modalBackdrop.hidden)) {
+      document.body.style.overflow = 'hidden';
+    } else if (!navDrawerBackdrop || navDrawerBackdrop.hidden) {
+      document.body.style.overflow = '';
+    }
+  }
+
+  function updateNavDrawerActiveState() {
+    document.querySelectorAll('.nav-drawer__item[data-nav="byteshield"]').forEach((btn) => {
+      const active = !byteshieldPanel.hidden && activeMode === btn.dataset.mode;
+      btn.classList.toggle('nav-drawer__item--active', active);
+      btn.setAttribute('aria-current', active ? 'page' : 'false');
+    });
+    const landingBtn = document.querySelector('.nav-drawer__item[data-nav="landing"]');
+    if (landingBtn) {
+      const onLanding = alinmaPage && !alinmaPage.hidden && byteshieldPanel.hidden;
+      landingBtn.classList.toggle('nav-drawer__item--active', onLanding);
+      landingBtn.setAttribute('aria-current', onLanding ? 'page' : 'false');
+    }
+  }
+
+  function setMenuExpanded(open) {
+    menuToggleButtons.forEach((btn) => btn.setAttribute('aria-expanded', open ? 'true' : 'false'));
+  }
+
+  function openNavDrawer() {
+    if (!navDrawerBackdrop) return;
+    updateNavDrawerActiveState();
+    navDrawerBackdrop.hidden = false;
+    setMenuExpanded(true);
+    document.body.style.overflow = 'hidden';
+    navDrawerClose?.focus();
+  }
+
+  function closeNavDrawer() {
+    if (!navDrawerBackdrop || navDrawerBackdrop.hidden) return;
+    navDrawerBackdrop.hidden = true;
+    setMenuExpanded(false);
+    syncBodyOverflow();
+  }
+
+  function showBankLanding() {
+    byteshieldPanel.hidden = true;
+    alinmaPage.hidden = false;
+    closeNavDrawer();
+    document.body.style.overflow = '';
+  }
+
+  function showByteShieldPanel(mode) {
+    alinmaPage.hidden = true;
+    byteshieldPanel.hidden = false;
+    document.body.style.overflow = 'hidden';
+    byteshieldPanel.scrollTop = 0;
+    switchMode(mode || activeMode);
+    closeNavDrawer();
+    updateResultsVisibility();
+  }
+
+  menuToggleButtons.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      if (navDrawerBackdrop && !navDrawerBackdrop.hidden) closeNavDrawer();
+      else openNavDrawer();
+    });
+  });
+
+  navDrawerClose?.addEventListener('click', closeNavDrawer);
+  navDrawerBackdrop?.addEventListener('click', (e) => {
+    if (e.target === navDrawerBackdrop) closeNavDrawer();
+  });
+
+  navDrawer?.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-nav]');
+    if (!btn) return;
+    const nav = btn.dataset.nav;
+    if (nav === 'landing') {
+      showBankLanding();
+    } else if (nav === 'byteshield') {
+      showByteShieldPanel(btn.dataset.mode || 'user');
+    } else if (nav === 'service') {
+      showBankLanding();
+      showToast(`خدمة «${btn.dataset.serviceLabel || 'البنك'}» — متاحة في تطبيق الإنماء الكامل`);
+    }
+  });
+
   document.querySelectorAll('.service-card:not(.service-card--byteshield)').forEach((card) => {
     card.addEventListener('click', (e) => {
       e.preventDefault();
-      showToast('???? ??????? ? ByteShield ???? ????? ??????');
+      showToast('هذه الخدمة في ByteShield — افتح بطاقة فحص الاحتيال');
     });
   });
 
@@ -325,6 +450,9 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
   const btnCloseSupport = document.getElementById('btn-close-support');
   const btnReportBank = document.getElementById('btn-report-bank');
   const reportBankHint = document.getElementById('report-bank-hint');
+  const recommendContext = document.getElementById('recommend-context');
+  const statRecContext = document.getElementById('stat-rec-context');
+  const statWarnContext = document.getElementById('stat-warn-context');
   const chatMessages = document.getElementById('chat-messages');
   const chatForm = document.getElementById('chat-form');
   const chatInput = document.getElementById('chat-input');
@@ -496,7 +624,7 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     const baselineEl = document.getElementById('forecast-baseline-loss');
 
     if (lossEl) lossEl.textContent = formatSar(forecast.predictedLossSAR);
-    if (levelEl) levelEl.textContent = `????? ??????: ${forecast.forecastLevel || '?'}`;
+    if (levelEl) levelEl.textContent = `مستوى التوقع: ${forecast.forecastLevel || '—'}`;
     if (summaryEl) summaryEl.textContent = forecast.forecastSummaryAr || '';
     if (scoreEl) scoreEl.textContent = String(forecast.financialRiskScore ?? '?');
     if (probEl) probEl.textContent = `${Math.round((forecast.fraudProbability || 0) * 100)}%`;
@@ -560,7 +688,7 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
       scanSectionDesc.textContent = '\u0627\u0644\u0635\u0642 \u0627\u0644\u0645\u062d\u062a\u0648\u0649 \u0623\u0648 \u0627\u0631\u0641\u0639 \u0645\u0644\u0641\u064b\u0627 \u0644\u062a\u0642\u064a\u064a\u0645 \u0645\u0633\u062a\u0648\u0649 \u0627\u0644\u062e\u0637\u0631.';
     }
     if (btnSample) btnSample.textContent = '\u062c\u0631\u0628 \u0631\u0633\u0627\u0644\u0629 \u0627\u062d\u062a\u064a\u0627\u0644 \u0646\u0645\u0648\u0630\u062c\u064a\u0629';
-    if (btnScan) btnScan.textContent = '\u0628\u062f\u0621 \u0627\u0644\u062a\u062d\u0644\u064a\u0644 \u0627\u0644\u0623\u0645\u0646\u064a';
+    if (btnScan) btnScan.textContent = '🛡️ بدء التحليل الأمني';
   }
 
   function readFieldValue(id) {
@@ -616,12 +744,12 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     const isPdf = file.type === 'application/pdf';
 
     if (!isImage && !isPdf) {
-      showToast('???? ??? ???? (JPG, PNG) ?? ??? PDF');
+      showToast('يرجى رفع صورة (JPG, PNG) أو ملف PDF');
       return;
     }
 
     if (file.size > 10 * 1024 * 1024) {
-      showToast('????? ???? ???? ? ???? ?????? 10 MB');
+      showToast('حجم الملف كبير — الحد الأقصى 10 MB');
       return;
     }
 
@@ -701,7 +829,7 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
       case 'screenshot':
         return {
           type: 'Screenshot',
-          text: screenshotFile ? `[???: ${screenshotFile.name}]` : '',
+          text: screenshotFile ? `[ملف: ${screenshotFile.name}]` : '',
           hasImage: !!screenshotFile,
         };
       default:
@@ -731,7 +859,7 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     });
 
     if (text.length > 0 && text.length < 40 && /click|verify|urgent/i.test(text)) {
-      flags.push('????? ????? ???? ???? ?????');
+      flags.push('رسالة قصيرة جداً بلغة ضاغطة');
       score += 10;
     }
 
@@ -743,13 +871,13 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     let score = 15;
 
     if (!url) {
-      return { flags: ['?? ??????? ????'], score: 0, invalid: true };
+      return { flags: ['لم يُقدَّم رابط'], score: 0, invalid: true };
     }
 
     try {
       new URL(url.startsWith('http') ? url : `https://${url}`);
     } catch {
-      return { flags: ['???? ??? ???? ?? ?????'], score: 85, invalid: false };
+      return { flags: ['رابط غير صالح أو مشوّه'], score: 85, invalid: false };
     }
 
     const fullUrl = url.startsWith('http') ? url : `https://${url}`;
@@ -762,7 +890,7 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     });
 
     if (flags.length === 0) {
-      flags.push('?? ?????? ?????? ??? ????? ? ???? ???? ?????');
+      flags.push('لم تُكتشف مؤشرات خطر واضحة — تحقق بشكل مستقل');
       score = 22;
     }
 
@@ -771,24 +899,24 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
 
   function analyzeScreenshot() {
     const flags = [
-      '?? ??? ?????? ? ??????? ???? ??? OCR ?? ???????',
-      '??? ??????: ?????? ???? ??? ??? ?? ????????',
-      '?? ???? ?????? ?? ???? ?????? ?? ?????? ?????',
-      '??? ??????? ????? ?? ????? ????????',
+      'تم رفع اللقطة — استخراج النص عبر OCR في الإنتاج',
+      'وضع تجريبي: افتراض وجود طلب دفع في المحادثة',
+      'لا يمكن التحقق من هوية المرسل من الصورة وحدها',
+      'لغة استعجال شائعة في لقطات الاحتيال',
     ];
     return {
       flags,
       score: 72,
-      explanation: '?? ???????? ?????? ByteShield ????? ?????? ?????? ?????? ?????? ???? ???????? ???????? ???? ???????? ?????? ???????? ????????. ??? ????? ???????? ????? ????? ??? ????? ??? ?????.',
+      explanation: 'في الإنتاج، يستخدم ByteShield ذكاءً بصرياً لقراءة اللقطة وتحديد منصة المراسلة واستخراج النص ومقارنته بأنماط الاحتيال المعروفة. هذا العرض التجريبي يحاكي نتيجة خطر متوسط إلى مرتفع.',
     };
   }
 
   function scoreToLevel(score) {
     const tier = getScoreTier(score);
     const verdicts = {
-      low: '???? ????? ?????? ? ???? ?????? ???? ?????',
-      medium: '????? ? ????? ????? ??? ?? ?????',
-      high: '?????? ?? ???? ????? ? ?? ??????',
+      low: 'يبدو آمناً نسبياً — تحقق دائماً بشكل مستقل',
+      medium: 'مشبوه — توخَّ الحذر قبل أي إجراء',
+      high: 'احتيال أو تصيد محتمل — لا تتفاعل',
     };
     return { level: tier.statusAr, class: tier.levelClass, verdict: verdicts[tier.levelClass] };
   }
@@ -796,59 +924,41 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
   function getRecommendations(score, type) {
     const recs = [];
     if (score >= 61) {
-      recs.push('?? ???? ??? ?? ????? ??? ??? ??? ???????');
-      recs.push('?? ????? ????? ?????? ?? ???? OTP ?? ?????? ?????');
-      recs.push('????? ?? ????? ?????? ??? ?????? ?? ????? ??????? ??????');
-      recs.push('???? ????? ?? ?????? ??????? ???????? ???????????');
+      recs.push('لا تنقر على أي روابط ولا ترد على الرسالة');
+      recs.push('لا تشارك كلمات المرور أو رموز OTP أو بيانات الدفع');
+      recs.push('تواصل مع الجهة مباشرة عبر موقعها أو تطبيق الإنماء الرسمي');
+      recs.push('أبلغ البنك أو الجهات المختصة بالجرائم الإلكترونية');
     } else if (score >= 31) {
-      recs.push('???? ?? ?????? ??? ???? ????? ??? ?? ?????');
-      recs.push('???? ?????? ??? ????? ?????? ?? ?????? ????????');
-      recs.push('???? ?? ?????? ?????? ????????');
-      recs.push('??? ????? ????? ??????? ????? ?????? ??????');
+      recs.push('تحقق من المرسل عبر قناة رسمية قبل أي إجراء');
+      recs.push('افحص الرابط قبل النقر للتأكد من الوجهة الحقيقية');
+      recs.push('ابحث عن تقارير مشابهة للاحتيال');
+      recs.push('عند الشك، تجاهل الرسالة واتصل بالدعم الرسمي');
     } else {
-      recs.push('??????? ???? ????? ?????? ??? ????? ???????');
-      recs.push('???? ?? ???? ?????? ??? ???? ??? ??? ????');
-      recs.push('?? ????? ?????? ?? ???????? ??????? ?????');
+      recs.push('المحتوى يبدو آمناً نسبياً وفق تحليل الأنماط');
+      recs.push('تحقق من هوية المرسل إذا شعرت بأي شيء غريب');
+      recs.push('لا تشارك الرموز أو البيانات الحساسة أبداً');
     }
     if (type === 'URL') {
-      recs.unshift('???? ????? ?????? ?????? ?????? ????? ?? ????? ??? ??????');
+      recs.unshift('اكتب عنوان الموقع الرسمي يدوياً بدلاً من النقر على الرابط');
     }
     if (type === 'Screenshot') {
-      recs.unshift('???? ?? ?????? ?????? ?? ????? ??? ????? ????? ??????');
-    }
-    if (type === 'Phishing') {
-      recs.unshift('???? ?????? ????? ????? ????? ???? ??? ??????? ???????');
-    }
-    if (type === 'Process') {
-      recs.unshift('???? ?????? ????? ???? ???????? ???? ???????');
+      recs.unshift('اطلب من المرسل التحقق من هويته عبر وسيلة اتصال معروفة');
     }
     return recs;
   }
 
   function buildExplanation(text, flags, score, type) {
-    const { level } = scoreToLevel(score);
-    const typeAr = {
-      Message: '?????',
-      Email: '????',
-      URL: '????',
-      Screenshot: '????',
-      Phishing: '???? ????',
-      Process: '??? ?????',
-    }[type] || type;
-    const parts = [
-      `??? ByteShield ??? ${typeAr} ????? ???? ??? ${level} (${score}/100).`,
-    ];
-    if (flags.length > 0) {
-      parts.push(`??? ${flags.length} ????${flags.length > 1 ? '??' : ''}? ????: ${flags[0]}.`);
-    }
+    const typeAr = { Message: 'رسالة', Email: 'بريد', URL: 'رابط', Screenshot: 'لقطة' }[type] || type;
+    const lead = flags.length > 0
+      ? `أثناء فحص هذا ${typeAr}، لاحظنا ${flags.length} علامة${flags.length > 1 ? 'ات' : ''} تستدعي الانتباه — منها: ${flags[0]}.`
+      : `لم نرصد علامات خطر واضحة في هذا ${typeAr}.`;
     if (score >= 61) {
-      parts.push('??? ?????? ????? ????? ?????? ???? ????? ??????. ????? ??? ????????? ???? ???????? ???????? ???????? ????? ???? ??? ??????.');
-    } else if (score >= 31) {
-      parts.push('??? ??????? ???? ??????? ??????????. ?????? ???????? ?????? ?? ???? ???? ?????? ????? ??? ????? ??? ??????.');
-    } else {
-      parts.push('?? ????? ????? ???? ??????? ??? ??????? ?????????? ?? ???? ????. ?? ????? ??? ???? ??? ??? ????.');
+      return `${lead} ننصح بعدم التفاعل مع المحتوى أو مشاركة أي بيانات حساسة حتى تتأكد من المصدر.`;
     }
-    return parts.join(' ');
+    if (score >= 31) {
+      return `${lead} تحقق من المرسل والروابط قبل أي إجراء، خاصة إذا طُلب منك التصرف بسرعة.`;
+    }
+    return `${lead} مع ذلك، تحقق دائماً عبر القنوات الرسمية إذا شعرت بأي شيء غريب.`;
   }
 
   function buildLocalReport(text, contentType) {
@@ -863,7 +973,7 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
       statusMessage: tier.defaultMessage,
       shortExplanation: buildExplanation(text, flags, score, contentType),
       confidence: Math.min(98, Math.max(55, score + 10)),
-      reasoning: flags.length ? flags : ['?? ????? ?????? ??? ?????'],
+      reasoning: flags.length ? flags : ['لم تُرصد مؤشرات خطر واضحة'],
       actionChecklist: getRecommendations(score, contentType),
       riskBreakdown: {
         senderAuthenticity: Math.round(score * 0.8),
@@ -879,7 +989,7 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
       threatType: 'phishing',
       securityTips: getDefaultTips('phishing'),
       source: 'local',
-      analysisNote: '????? ???? (????? OpenAI ??? ????) ? ??????? ?????? ????? API ?????? ????? ??????',
+      analysisNote: 'تحليل محلي (مفتاح OpenAI غير متاح) — للرسائل استخدم مفتاح API صالحاً للدقة الأعلى',
     };
   }
 
@@ -894,11 +1004,11 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
 
     if (activeTab === 'screenshot') {
       if (!input.hasImage) {
-        showToast('???? ??? ???? ?? ??? PDF ?????');
+        showToast('يرجى رفع صورة أو ملف PDF أولاً');
         return;
       }
     } else if (!input.text) {
-      showToast('???? ????? ????? ???????');
+      showToast('يرجى إدخال محتوى للتحليل');
       return;
     }
 
@@ -921,7 +1031,7 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
             body: formData,
           });
         } catch {
-          showToast('???? ??????? ??????? ? ???? http://localhost:3000');
+          showToast('تعذر الاتصال بالخادم — افتح http://localhost:3000');
           return;
         }
 
@@ -929,16 +1039,16 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
         try {
           result = await response.json();
         } catch {
-          showToast('???? ????? ?? ??????');
+          showToast('تعذر قراءة رد الخادم');
           return;
         }
 
         if (!response.ok || !result.success) {
-          const message = result.error || '??? ????? ?????';
+          const message = result.error || 'فشل تحليل الملف';
           if (message.includes('429') || message.toLowerCase().includes('quota')) {
-            showToast('?? ????? ?? OpenAI ? ????? ????? ????? ??????');
+            showToast('تم تجاوز حد OpenAI — انتظر دقيقة وحاول مجدداً');
           } else if (isOpenAiKeyError(message)) {
-            showToast('????? OpenAI ??? ???? ? ???? backend/.env');
+            showToast('مفتاح OpenAI غير صالح — حدّث backend/.env');
           } else {
             showToast(message);
           }
@@ -967,7 +1077,7 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
       } catch {
         const report = buildLocalReport(input.text, input.type);
         finalizeAnalysis(input.text, input.type, report);
-        showToast('???? ??????? ??????? ? ?? ??????? ??????? ??????');
+        showToast('تعذر الاتصال بالخادم — تم استخدام التحليل المحلي');
         return;
       }
 
@@ -978,33 +1088,33 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
         if (activeTab !== 'url') {
           const report = buildLocalReport(input.text, input.type);
           finalizeAnalysis(input.text, input.type, report);
-          showToast('\u062a\u0639\u0630\u0631 \u0642\u0631\u0627\u0621\u0629 \u0631\u062f \u0627\u0644\u062e\u0627\u062f\u0645 \u2014 \u062a\u0645 \u0627\u0633\u062a\u062e\u062f\u0627\u0645 \u0627\u0644\u062a\u062d\u0644\u064a\u0644 \u0627\u0644\u0645\u062d\u0644\u064a');
+          showToast('تعذر قراءة رد الخادم — تم استخدام التحليل المحلي');
           return;
         }
-        showToast('\u062a\u0639\u0630\u0631 \u0627\u0644\u0627\u062a\u0635\u0627\u0644 \u0628\u0627\u0644\u062e\u0627\u062f\u0645 \u2014 \u0627\u0641\u062a\u062d http://localhost:3000');
+        showToast('تعذر الاتصال بالخادم — افتح http://localhost:3000');
         return;
       }
 
       if (!response.ok || !result.success) {
-        const message = result.error || '??? ??????? ? ???? ?? ????? ??????';
+        const message = result.error || 'فشل التحليل — تأكد من تشغيل الخادم';
 
         if (activeTab !== 'url' || isOpenAiKeyError(message)) {
           const report = buildLocalReport(input.text, input.type);
           finalizeAnalysis(input.text, input.type, report);
           if (isOpenAiKeyError(message)) {
-            showToast('????? OpenAI ??? ???? ? ?? ??????? ??????? ??????. ???? backend/.env');
+            showToast('مفتاح OpenAI غير صالح — تم استخدام التحليل المحلي. حدّث backend/.env');
           } else {
-            showToast('??? ??????? ??????? ? ?? ??????? ??????? ??????');
+            showToast('فشل التحليل السحابي — تم استخدام التحليل المحلي');
           }
           return;
         }
 
         if (message.includes('429') || message.toLowerCase().includes('quota') || message.toLowerCase().includes('rate limit')) {
-          showToast('?? ????? ?? OpenAI ? ????? ????? ????? ??????');
+          showToast('تم تجاوز حد OpenAI — انتظر دقيقة وحاول مجدداً');
         } else if (activeTab === 'url') {
           const report = buildLocalReport(input.text, input.type);
           finalizeAnalysis(input.text, input.type, report);
-          showToast('???? ????? ????? ?????? ?????? ? ?? ??????? ??????? ??????');
+          showToast('تعذر تشغيل نموذج التعلم العميق — تم استخدام التحليل المحلي');
         } else {
           showToast(message);
         }
@@ -1017,10 +1127,10 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
       finalizeAnalysis(input.text, input.type, report);
     } catch (error) {
       console.error(error);
-      showToast('???? ??????? ??????? ? ???? http://localhost:3000 ????? ??????? ?? ???? backend');
+      showToast('تعذر الاتصال بالخادم — افتح http://localhost:3000 وشغّل الباكند من مجلد backend');
     } finally {
       btnScan.classList.remove('scanning');
-      btnScan.textContent = "\u0628\u062f\u0621 \u0627\u0644\u062a\u062d\u0644\u064a\u0644 \u0627\u0644\u0623\u0645\u0646\u064a";
+      btnScan.textContent = '🛡️ بدء التحليل الأمني';
     }
   }
 
@@ -1084,12 +1194,12 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
 
   function buildChatContext(text, report) {
     return [
-      `???????: ${text}`,
-      `???? ?????: ${report.score}/100`,
-      `??????: ${report.tier.statusAr}`,
-      `?????: ${report.shortExplanation}`,
-      `???????: ${report.reasoning.join('? ')}`,
-      `????????: ${report.actionChecklist.join('? ')}`,
+      `الرسالة: ${text}`,
+      `درجة الخطر: ${report.score}/100`,
+      `الحالة: ${report.tier.statusAr}`,
+      `الشرح: ${report.shortExplanation}`,
+      `الأسباب: ${report.reasoning.join('؛ ')}`,
+      `التوصيات: ${report.actionChecklist.join('؛ ')}`,
     ].join('\n');
   }
 
@@ -1516,6 +1626,23 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     showToast('Analyst case notes accepted');
   }
 
+  function resetReportSubmitButton() {
+    if (!btnReportBank) return;
+    btnReportBank.classList.remove('btn--decision-loading', 'btn--decision-pop', 'btn--decision-approved');
+    btnReportBank.textContent = 'Submit Fraud Report';
+    btnReportBank.disabled = false;
+    btnReportBank.setAttribute('aria-pressed', 'false');
+  }
+
+  function applyReportSubmitSuccess() {
+    if (!btnReportBank) return;
+    btnReportBank.classList.remove('btn--decision-loading', 'btn--decision-pop');
+    btnReportBank.classList.add('btn--decision-approved');
+    btnReportBank.textContent = 'Submitted ✓';
+    btnReportBank.disabled = true;
+    btnReportBank.setAttribute('aria-pressed', 'true');
+  }
+
   async function reportToBank() {
     if (!lastUserReport) {
       showToast('Run an analysis first');
@@ -1529,8 +1656,9 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     }
 
     if (btnReportBank) {
+      btnReportBank.classList.add('btn--decision-loading', 'btn--decision-pop');
+      btnReportBank.textContent = 'Submitting…';
       btnReportBank.disabled = true;
-      btnReportBank.textContent = 'Submitting\u2026';
     }
 
     try {
@@ -1554,20 +1682,16 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
         throw new Error(result.error || 'Failed to submit fraud report');
       }
 
-      if (btnReportBank) {
-        btnReportBank.disabled = true;
-        btnReportBank.textContent = 'Submitted \u2713';
-      }
+      applyReportSubmitSuccess();
       if (reportBankHint) reportBankHint.hidden = false;
-      showToast(`Fraud report submitted \u2014 ${result.case.id}`);
+      showToast(`Fraud report submitted — ${result.case.id}`);
       if (activeMode === 'fraud') renderFraudOpsDashboard();
     } catch (err) {
       console.error(err);
-      if (btnReportBank) {
-        btnReportBank.disabled = false;
-        btnReportBank.textContent = 'Submit Fraud Report';
-      }
+      resetReportSubmitButton();
       showToast(err.message || 'Could not submit fraud report');
+    } finally {
+      btnReportBank?.classList.remove('btn--decision-pop');
     }
   }
 
@@ -1718,22 +1842,19 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     });
 
     document.getElementById('risk-tier-label').textContent = tier.tierLabel;
-    document.getElementById('results-status-desc').textContent = report.analysisNote
-      ? `${report.analysisNote}\n\n${shortExplanation}`
-      : shortExplanation;
+    document.getElementById('results-status-desc').textContent = shortExplanation;
 
-    const recSummary = score <= 30 ? '?? ???? ????? ????' : score <= 60 ? '????? ????? ?????' : '??????? ????? ??????';
+    const tierKey = scoreTierKey(score);
+    if (recommendContext) recommendContext.textContent = RECOMMEND_CONTEXT[tierKey];
+
+    const recSummary = score <= 30 ? 'لا يلزم إجراء فوري' : score <= 60 ? 'توخَّ الحذر وتحقق' : 'إجراءات عاجلة مطلوبة';
     document.getElementById('stat-rec-text').textContent = recSummary;
+    if (statRecContext) statRecContext.textContent = STAT_REC_CONTEXT[tierKey];
 
     const indicatorCount = reasoning.length;
-    const warnText = indicatorCount === 0
-      ? '?? ????? ?????? ?????'
-      : indicatorCount <= 2
-        ? '?????? ??????'
-        : indicatorCount <= 4
-          ? '?????? ??????'
-          : '?????? ??????';
-    document.getElementById('stat-warn-text').textContent = `${indicatorCount} ? ${warnText}`;
+    const warnSummary = getWarnSummary(indicatorCount);
+    document.getElementById('stat-warn-text').textContent = `${indicatorCount} — ${warnSummary}`;
+    if (statWarnContext) statWarnContext.textContent = getWarnContext(indicatorCount);
 
     document.getElementById('recommend-summary').textContent = shortExplanation;
     document.getElementById('recommend-checklist').innerHTML = actionChecklist
@@ -1741,8 +1862,7 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
 
     if (btnReportBank) {
       const suspicious = (Number(score) || 0) >= 31;
-      btnReportBank.disabled = false;
-      btnReportBank.textContent = 'Submit Fraud Report';
+      resetReportSubmitButton();
       btnReportBank.hidden = activeMode !== 'user' || !suspicious;
     }
     if (reportBankHint) reportBankHint.hidden = true;
@@ -1770,7 +1890,7 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     document.getElementById('detailed-analysis').textContent = detailedAnalysis;
     document.getElementById('reason-list').innerHTML = reasoning.length
       ? reasoning.map((r) => `<li>${escapeHtml(r)}</li>`).join('')
-      : '<li>?? ????? ?????? ???? ?????</li>';
+      : '<li>لا تُرصد مؤشرات خطر واضحة</li>';
 
     updateBankFooter(detectedBanks, bankAdvice, securityTips);
 
@@ -1782,24 +1902,24 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     const tipsList = document.getElementById('bank-footer-tips');
 
     if (detectedBanks && detectedBanks.length) {
-      title.textContent = `??????? ${detectedBanks[0]}`;
+      title.textContent = `إرشادات ${detectedBanks[0]}`;
       const tips = securityTips && securityTips.length ? securityTips : [
-        '?? ????? ??????? ??????? ??? ???????',
-        '???? ?? ????? ?????? ??????',
-        '?? ????? ??? OTP ??? ??? ????? ??? SMS',
-        '?????? ??????? ?????? ???',
+        'لا تشارك بياناتك البنكية عبر الرسائل',
+        'تحقق من الرقم الرسمي للبنك',
+        'لا ترسل OTP لأي جهة تطلبه عبر SMS',
+        'اتصل بالبنك من التطبيق الرسمي',
       ];
       if (bankAdvice) {
         tips.unshift(bankAdvice);
       }
-      tipsList.innerHTML = tips.slice(0, 5).map((t) => `<li><span>???</span>${escapeHtml(t)}</li>`).join('');
+      tipsList.innerHTML = tips.slice(0, 5).map((t) => `<li><span>•</span>${escapeHtml(t)}</li>`).join('');
     } else {
-      title.textContent = '??????? ??????';
+      title.textContent = 'إرشادات أمنية';
       tipsList.innerHTML = `
-        <li><span>???</span>?? ????? ??????? ??????? ??? ???????</li>
-        <li><span>???</span>???? ?? ????? ?????? ??????</li>
-        <li><span>???</span>?? ????? ??? OTP ??? ??? ????? ??? SMS</li>
-        <li><span>???</span>?????? ??????? ?????? ???</li>`;
+        <li><span>•</span>لا تشارك بياناتك البنكية عبر الرسائل</li>
+        <li><span>•</span>تحقق من الرقم الرسمي للبنك</li>
+        <li><span>•</span>لا ترسل OTP لأي جهة تطلبه عبر SMS</li>
+        <li><span>•</span>اتصل بالبنك من التطبيق الرسمي</li>`;
     }
   }
 
@@ -1826,7 +1946,7 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     supportModal.hidden = true;
     chatHistory = [];
     chatMessages.innerHTML = '';
-    appendChatMessage('bot', '??????! ??? ByteShield AI. ???? ????? ?????? ? ?????? ?? ???: ????? ?????? ?? ?????? ???? ?? ???? ??????');
+    appendChatMessage('bot', 'مرحباً! أنا ByteShield AI. اسألني عن نتيجة التحليل أو اطلب نصائح: كيف أتحقق من رسالة مشبوهة أو ماذا أفعل إذا ضغطت على رابط؟');
     modalBackdrop.hidden = false;
     chatModal.hidden = false;
     document.body.style.overflow = 'hidden';
@@ -1854,7 +1974,12 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
   }
 
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && !modalBackdrop.hidden) {
+    if (e.key !== 'Escape') return;
+    if (navDrawerBackdrop && !navDrawerBackdrop.hidden) {
+      closeNavDrawer();
+      return;
+    }
+    if (!modalBackdrop.hidden) {
       closeModals();
     }
   });
@@ -1876,7 +2001,7 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     chatHistory.push({ role: 'user', content: text });
     btnChatSend.disabled = true;
 
-    const typing = appendChatMessage('bot', '???? ????????');
+    const typing = appendChatMessage('bot', 'جاري الكتابة…');
     typing.classList.add('chat-msg--typing');
 
     try {
@@ -1889,14 +2014,14 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
       let result;
       try { result = await response.json(); } catch {
         typing.remove();
-        showToast('???? ??????? ????????');
+        showToast('تعذر الاتصال بالمساعد');
         return;
       }
 
       typing.remove();
 
       if (!response.ok || !result.success) {
-        showToast(result.error || '??? ???????');
+        showToast(result.error || 'فشل الإرسال');
         chatHistory.pop();
         return;
       }
@@ -1906,7 +2031,7 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     } catch (err) {
       typing.remove();
       console.error(err);
-      showToast('???? ??????? ????????');
+      showToast('تعذر الاتصال بالمساعد');
       chatHistory.pop();
     } finally {
       btnChatSend.disabled = false;
@@ -2155,9 +2280,7 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
       }
 
       const closed = c.status === 'Closed';
-      if (btnFraudApprove) btnFraudApprove.disabled = closed;
-      if (btnFraudModify) btnFraudModify.disabled = closed;
-      if (btnFraudReject) btnFraudReject.disabled = closed;
+      applyFraudDecisionButtons(c.decision, closed);
 
       // Soft-refresh queue counts after Pending → Under Review
       try {
@@ -2184,6 +2307,27 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
 
   async function submitFraudDecision(outcome, action, analystNote) {
     if (!selectedFraudCaseId) return;
+
+    const triggerBtn = outcome === 'approve'
+      ? btnFraudApprove
+      : outcome === 'reject'
+        ? btnFraudReject
+        : btnFraudModifySave;
+    const loadingLabels = {
+      approve: 'Approving…',
+      reject: 'Rejecting…',
+      modify: 'Saving…',
+    };
+
+    if (triggerBtn) {
+      triggerBtn.classList.add('btn--decision-loading', 'btn--decision-pop');
+      triggerBtn.textContent = loadingLabels[outcome] || 'Saving…';
+      triggerBtn.disabled = true;
+    }
+    [btnFraudApprove, btnFraudModify, btnFraudReject].forEach((btn) => {
+      if (btn && btn !== triggerBtn) btn.disabled = true;
+    });
+
     try {
       const response = await fetch(getApiUrl(`/api/cases/${encodeURIComponent(selectedFraudCaseId)}/decision`), {
         method: 'POST',
@@ -2198,7 +2342,57 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     } catch (err) {
       console.error(err);
       showToast(err.message || 'Could not save decision');
+      applyFraudDecisionButtons(selectedFraudCase?.decision, selectedFraudCase?.status === 'Closed');
+    } finally {
+      triggerBtn?.classList.remove('btn--decision-loading', 'btn--decision-pop');
     }
+  }
+
+  function applyFraudDecisionButtons(decision, closed) {
+    const config = [
+      {
+        el: btnFraudApprove,
+        outcome: 'approve',
+        defaultLabel: 'Approve',
+        chosenLabel: 'Approved ✓',
+        chosenClass: 'btn--decision-approved',
+      },
+      {
+        el: btnFraudModify,
+        outcome: 'modify',
+        defaultLabel: 'Modify',
+        chosenLabel: 'Modified ✓',
+        chosenClass: 'btn--decision-modified',
+      },
+      {
+        el: btnFraudReject,
+        outcome: 'reject',
+        defaultLabel: 'Reject',
+        chosenLabel: 'Rejected ✓',
+        chosenClass: 'btn--decision-rejected',
+      },
+    ];
+
+    config.forEach(({ el, outcome, defaultLabel, chosenLabel, chosenClass }) => {
+      if (!el) return;
+      el.classList.remove(
+        'btn--decision-approved',
+        'btn--decision-modified',
+        'btn--decision-rejected',
+        'btn--decision-loading',
+        'btn--decision-muted',
+        'btn--decision-pop',
+      );
+      const chosen = decision?.outcome === outcome;
+      el.textContent = chosen ? chosenLabel : defaultLabel;
+      el.disabled = closed;
+      el.setAttribute('aria-pressed', chosen ? 'true' : 'false');
+      if (chosen) {
+        el.classList.add(chosenClass);
+      } else if (decision && closed) {
+        el.classList.add('btn--decision-muted');
+      }
+    });
   }
 
   function appendCopilotMessage(role, text) {
@@ -2247,6 +2441,8 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
 
   if (btnFraudApprove) {
     btnFraudApprove.addEventListener('click', () => {
+      btnFraudApprove.classList.add('btn--decision-pop');
+      window.setTimeout(() => btnFraudApprove.classList.remove('btn--decision-pop'), 350);
       const action = selectedFraudCase?.investigation?.recommendation?.action || 'Continue Monitoring';
       submitFraudDecision('approve', action, '');
     });
