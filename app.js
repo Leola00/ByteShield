@@ -1,4 +1,4 @@
-(function () {
+﻿(function () {
   'use strict';
 
   const SAMPLE_SCAM = `URGENT: Your bank account has been suspended due to suspicious activity. Verify your identity immediately or your funds will be frozen within 24 hours.
@@ -34,6 +34,38 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     }).format(date);
   }
 
+  function formatSocDateTime(date = new Date()) {
+    return new Intl.DateTimeFormat('en-GB', {
+      timeZone: SAUDI_TZ,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+    }).format(date);
+  }
+
+  function containsArabic(text) {
+    return /[\u0600-\u06FF]/.test(String(text || ''));
+  }
+
+  function englishOnlyText(text, fallback = '') {
+    const value = String(text || '').trim();
+    if (!value || containsArabic(value)) return fallback;
+    return value;
+  }
+
+  function englishOnlyList(items, fallbacks = []) {
+    const cleaned = (items || [])
+      .map((item) => englishOnlyText(item))
+      .filter(Boolean);
+    return cleaned.length ? cleaned : fallbacks;
+  }
+
+  const FRAUD_QUEUE_KEY = 'byteshield_fraud_ops_queue'; // legacy key (unused — cases are server-backed)
+
   let lastAnalysisContext = '';
   let lastSocReport = null;
   let lastUserReport = null;
@@ -42,6 +74,19 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
   let lastContentType = 'Message';
   let activeMode = 'user';
   let chatHistory = [];
+  let caseNotesMode = 'draft'; // draft | editing | accepted
+  let caseNotesAcceptedHtml = '';
+  let fraudFilter = 'all';
+  let selectedFraudCaseId = null;
+
+  const CASE_NOTE_SECTIONS = [
+    'Time of activity:',
+    'List of Affected Entities:',
+    'Reason for Classification:',
+    'Reason for Escalating the Alert:',
+    'Recommended Remediation Actions:',
+    'List of Attack Indicators:',
+  ];
 
   function getApiUrl(path) {
     const { protocol, hostname, port } = window.location;
@@ -219,10 +264,10 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
       desc: 'وفر الوقت مع إمكانية الوصول الفوري إلى خدمات الإنماء الرئيسية',
       sublabel: 'فحص الاحتيال والتصيد',
     },
-    soc: {
-      title: 'مركز عمليات الأمن — SOC',
-      desc: 'تحليل الحوادث، تقارير MITRE ATT&CK، مؤشرات الاختراق، وخطط الاحتواء — للمحللين الأمنيين.',
-      sublabel: 'لوحة SOC — تقارير الحوادث',
+    fraud: {
+      title: 'Fraud Operations Center',
+      desc: 'Triage customer-reported fraud cases and manage the investigation queue.',
+      sublabel: 'Fraud Operations \u2014 case queue',
     },
   };
 
@@ -243,15 +288,18 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
   document.querySelectorAll('.service-card:not(.service-card--byteshield)').forEach((card) => {
     card.addEventListener('click', (e) => {
       e.preventDefault();
-      showToast('خدمة تجريبية — ByteShield متاح للفحص الأمني');
+      showToast('???? ??????? ? ByteShield ???? ????? ??????');
     });
   });
 
   let activeTab = 'text';
   let screenshotFile = null;
 
-  const tabs = document.querySelectorAll('.tab');
-  const panels = document.querySelectorAll('.tab-panel');
+  const tabs = document.querySelectorAll('#user-scan-input .tab');
+  const panels = document.querySelectorAll('#user-scan-input .tab-panel');
+  const userScanInput = document.getElementById('user-scan-input');
+  const socScanInput = document.getElementById('soc-scan-input'); // may be null in new HTML
+  const scanSectionDesc = document.getElementById('scan-section-desc');
   const btnScan = document.getElementById('btn-scan');
   const btnSample = document.getElementById('btn-sample');
   const resultsUser = document.getElementById('results-user');
@@ -275,6 +323,8 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
   const supportModal = document.getElementById('support-modal');
   const btnCloseChat = document.getElementById('btn-close-chat');
   const btnCloseSupport = document.getElementById('btn-close-support');
+  const btnReportBank = document.getElementById('btn-report-bank');
+  const reportBankHint = document.getElementById('report-bank-hint');
   const chatMessages = document.getElementById('chat-messages');
   const chatForm = document.getElementById('chat-form');
   const chatInput = document.getElementById('chat-input');
@@ -283,18 +333,82 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
   const modeTabs = document.querySelectorAll('.mode-tab');
   const bsIntroUser = document.getElementById('bs-intro-user');
   const bsIntroSoc = document.getElementById('bs-intro-soc');
-  const byteshieldPanelEl = document.getElementById('byteshield-panel');
+  // Legacy SOC DOM refs — null in new HTML; kept for no-op safety in SOC helpers below
   const socReportEl = document.getElementById('soc-report');
   const socLoadingEl = document.getElementById('soc-loading');
   const socEmptyEl = document.getElementById('soc-empty');
+  const socCaseNotesEl = document.getElementById('soc-case-notes');
+  const socCaseNotesEditor = document.getElementById('soc-case-notes-editor');
+  const socCaseNotesStatus = document.getElementById('soc-case-notes-status');
+  const socCaseNotesToolbar = document.getElementById('soc-case-notes-toolbar');
+  const socCaseNotesDisposition = document.getElementById('soc-case-notes-disposition');
+  const socDispositionValue = document.getElementById('soc-disposition-value');
+  const socDispositionReason = document.getElementById('soc-disposition-reason');
+  const btnCaseNotesEdit = document.getElementById('btn-case-notes-edit');
+  const btnCaseNotesAccept = document.getElementById('btn-case-notes-accept');
   const recommendCard = document.getElementById('recommend-card');
-  const socAnalyticsEl = document.getElementById('soc-analytics');
+
+  // Fraud Ops DOM refs
+  const userWorkspace = document.getElementById('user-workspace');
+  const fraudOps = document.getElementById('fraud-ops');
+  const fraudCaseList = document.getElementById('fraud-case-list');
+  const fraudQueueCount = document.getElementById('fraud-queue-count');
+  const fraudKpiTotal = document.getElementById('fraud-kpi-total');
+  const fraudKpiPending = document.getElementById('fraud-kpi-pending');
+  const fraudKpiReview = document.getElementById('fraud-kpi-review');
+  const fraudKpiClosed = document.getElementById('fraud-kpi-closed');
+  const fraudDetailEmpty = document.getElementById('fraud-detail-empty');
+  const fraudDetailBody = document.getElementById('fraud-detail-body');
+  const fraudDetailId = document.getElementById('fraud-detail-id');
+  const fraudDetailTitle = document.getElementById('fraud-detail-title');
+  const fraudDetailStatus = document.getElementById('fraud-detail-status');
+  const fraudDetailRisk = document.getElementById('fraud-detail-risk');
+  const fraudDetailTime = document.getElementById('fraud-detail-time');
+  const fraudDetailType = document.getElementById('fraud-detail-type');
+  const fraudDetailScore = document.getElementById('fraud-detail-score');
+  const fraudDetailThreat = document.getElementById('fraud-detail-threat');
+  const fraudDetailSummary = document.getElementById('fraud-detail-summary');
+  const fraudDetailEvidence = document.getElementById('fraud-detail-evidence');
+  const fraudDetailIocs = document.getElementById('fraud-detail-iocs');
+  const fraudDetailScreenshotWrap = document.getElementById('fraud-detail-screenshot-wrap');
+  const fraudDetailScreenshot = document.getElementById('fraud-detail-screenshot');
+  const fraudCampaignsList = document.getElementById('fraud-campaigns-list');
+  const fraudSearch = document.getElementById('fraud-search');
+  const fraudCategoryFilter = document.getElementById('fraud-category-filter');
+  const fraudRecAction = document.getElementById('fraud-rec-action');
+  const fraudRecRationale = document.getElementById('fraud-rec-rationale');
+  const fraudRecConfidence = document.getElementById('fraud-rec-confidence');
+  const fraudModifyPanel = document.getElementById('fraud-modify-panel');
+  const fraudModifyAction = document.getElementById('fraud-modify-action');
+  const fraudModifyNote = document.getElementById('fraud-modify-note');
+  const btnFraudRefresh = document.getElementById('btn-fraud-refresh');
+  const btnFraudApprove = document.getElementById('btn-fraud-approve');
+  const btnFraudModify = document.getElementById('btn-fraud-modify');
+  const btnFraudReject = document.getElementById('btn-fraud-reject');
+  const btnFraudModifySave = document.getElementById('btn-fraud-modify-save');
+  const fraudCopilotMessages = document.getElementById('fraud-copilot-messages');
+  const fraudCopilotForm = document.getElementById('fraud-copilot-form');
+  const fraudCopilotInput = document.getElementById('fraud-copilot-input');
+  const fraudDocExecutive = document.getElementById('fraud-doc-executive');
+  const fraudDocTechnical = document.getElementById('fraud-doc-technical');
+  const fraudDocCustomer = document.getElementById('fraud-doc-customer');
+  const fraudDocManagement = document.getElementById('fraud-doc-management');
+  const fraudDocNotes = document.getElementById('fraud-doc-notes');
+
+  let fraudCasesCache = [];
+  let selectedFraudCase = null;
+  let fraudCopilotHistory = [];
+  let fraudSearchQuery = '';
+  let fraudCategory = 'all';
+  let lastScreenshotDataUrl = null;
 
   modeTabs.forEach((tab) => {
     tab.addEventListener('click', () => switchMode(tab.dataset.mode));
   });
 
   function switchMode(mode) {
+    // Map legacy 'soc' to 'fraud'
+    if (mode === 'soc') mode = 'fraud';
     activeMode = mode;
 
     modeTabs.forEach((tab) => {
@@ -304,37 +418,33 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     });
 
     if (bsIntroUser) bsIntroUser.hidden = mode !== 'user';
-    if (bsIntroSoc) bsIntroSoc.hidden = mode !== 'soc';
+    if (bsIntroSoc) bsIntroSoc.hidden = mode !== 'fraud';
 
     const hero = MAIN_HERO[mode] || MAIN_HERO.user;
     if (alinmaHeroTitle) alinmaHeroTitle.textContent = hero.title;
     if (alinmaHeroDesc) alinmaHeroDesc.textContent = hero.desc;
     if (byteshieldCardSublabel) byteshieldCardSublabel.textContent = hero.sublabel;
-    if (alinmaPage) alinmaPage.classList.toggle('alinma-page--soc-mode', mode === 'soc');
-    if (openByteshield) openByteshield.classList.toggle('service-card--byteshield-soc', mode === 'soc');
+    const isFraud = mode === 'fraud';
+    if (alinmaPage) alinmaPage.classList.toggle('alinma-page--soc-mode', isFraud);
+    if (openByteshield) openByteshield.classList.toggle('service-card--byteshield-soc', isFraud);
     if (bsHeaderModeBadge) {
-      bsHeaderModeBadge.textContent = mode === 'soc' ? 'SOC' : 'شخصي';
-      bsHeaderModeBadge.classList.toggle('bs-header__mode-badge--soc', mode === 'soc');
+      bsHeaderModeBadge.textContent = isFraud ? 'Fraud Ops' : '\u0634\u062e\u0635\u064a';
+      bsHeaderModeBadge.classList.toggle('bs-header__mode-badge--soc', isFraud);
+    }
+    if (byteshieldPanel) {
+      byteshieldPanel.classList.toggle('byteshield-panel--soc-mode', isFraud);
     }
 
-    if (byteshieldPanelEl) {
-      byteshieldPanelEl.classList.toggle('byteshield-panel--soc-mode', mode === 'soc');
+    if (userWorkspace) userWorkspace.hidden = isFraud;
+    if (fraudOps) fraudOps.hidden = !isFraud;
+
+    if (recommendCard) {
+      recommendCard.hidden = mode !== 'user' || !lastUserReport;
     }
 
-    if (recommendCard && lastUserReport) {
-      recommendCard.hidden = mode !== 'user';
-    }
+    updateScanInputForMode(mode);
 
-    if (socAnalyticsEl) {
-      socAnalyticsEl.hidden = mode !== 'soc';
-      if (mode === 'soc') updateFinancialImpactDashboard();
-    }
-
-    if (mode === 'soc' && !lastSocReport && !socReportLoading) {
-      if (socLoadingEl) socLoadingEl.hidden = true;
-      if (socReportEl) { socReportEl.hidden = true; socReportEl.innerHTML = ''; }
-      if (socEmptyEl) socEmptyEl.hidden = !!lastUserReport;
-    }
+    if (isFraud) renderFraudOpsDashboard();
 
     updateResultsVisibility();
   }
@@ -386,9 +496,9 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     const baselineEl = document.getElementById('forecast-baseline-loss');
 
     if (lossEl) lossEl.textContent = formatSar(forecast.predictedLossSAR);
-    if (levelEl) levelEl.textContent = `مستوى التوقع: ${forecast.forecastLevel || '—'}`;
+    if (levelEl) levelEl.textContent = `????? ??????: ${forecast.forecastLevel || '?'}`;
     if (summaryEl) summaryEl.textContent = forecast.forecastSummaryAr || '';
-    if (scoreEl) scoreEl.textContent = String(forecast.financialRiskScore ?? '—');
+    if (scoreEl) scoreEl.textContent = String(forecast.financialRiskScore ?? '?');
     if (probEl) probEl.textContent = `${Math.round((forecast.fraudProbability || 0) * 100)}%`;
     if (baselineEl) baselineEl.textContent = formatSar(forecast.baselineLossSAR);
     if (detailEl) detailEl.hidden = false;
@@ -420,44 +530,42 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
   }
 
   function updateResultsVisibility() {
-    const hasUser = !!lastUserReport;
-    const hasSoc = !!lastSocReport;
-    const socLoading = socReportLoading;
-
-    if (activeMode === 'user') {
-      if (resultsSoc) resultsSoc.hidden = true;
-      if (hasUser) {
-        if (resultsPlaceholder) resultsPlaceholder.hidden = true;
-        if (resultsUser) resultsUser.hidden = false;
-        if (recommendCard) recommendCard.hidden = false;
-      } else {
-        if (resultsPlaceholder) resultsPlaceholder.hidden = false;
-        if (resultsUser) resultsUser.hidden = true;
-        if (resultsPlaceholderTitle) resultsPlaceholderTitle.textContent = 'ستظهر النتائج هنا';
-        if (resultsPlaceholderHint) {
-          resultsPlaceholderHint.textContent = 'أرسل المحتوى للحصول على تقرير مبسّط: آمن أم احتيال؟';
-        }
-      }
-    } else {
+    if (activeMode !== 'user') {
+      // Fraud Ops has its own UI — just hide user-mode widgets
       if (resultsUser) resultsUser.hidden = true;
       if (recommendCard) recommendCard.hidden = true;
-      if (hasSoc || socLoading) {
-        if (resultsPlaceholder) resultsPlaceholder.hidden = true;
-        if (resultsSoc) resultsSoc.hidden = false;
-      } else if (hasUser) {
-        if (resultsPlaceholder) resultsPlaceholder.hidden = true;
-        if (resultsSoc) resultsSoc.hidden = false;
-        if (socEmptyEl) socEmptyEl.hidden = false;
-        if (socLoadingEl) socLoadingEl.hidden = true;
-      } else {
-        if (resultsPlaceholder) resultsPlaceholder.hidden = false;
-        if (resultsSoc) resultsSoc.hidden = true;
-        if (resultsPlaceholderTitle) resultsPlaceholderTitle.textContent = 'تقرير SOC';
-        if (resultsPlaceholderHint) {
-          resultsPlaceholderHint.textContent = 'شغّل التحليل لإنشاء تقرير حادث MITRE ATT&CK و IoC.';
-        }
+      if (resultsPlaceholder) resultsPlaceholder.hidden = true;
+      return;
+    }
+
+    const hasUser = !!lastUserReport;
+    if (hasUser) {
+      if (resultsPlaceholder) resultsPlaceholder.hidden = true;
+      if (resultsUser) resultsUser.hidden = false;
+      if (recommendCard) recommendCard.hidden = false;
+    } else {
+      if (resultsPlaceholder) resultsPlaceholder.hidden = false;
+      if (resultsUser) resultsUser.hidden = true;
+      if (recommendCard) recommendCard.hidden = true;
+      if (resultsPlaceholderTitle) resultsPlaceholderTitle.textContent = '\u0633\u062a\u0638\u0647\u0631 \u0627\u0644\u0646\u062a\u0627\u0626\u062c \u0647\u0646\u0627';
+      if (resultsPlaceholderHint) {
+        resultsPlaceholderHint.textContent = '\u0623\u0631\u0633\u0644 \u0627\u0644\u0645\u062d\u062a\u0648\u0649 \u0644\u0644\u062d\u0635\u0648\u0644 \u0639\u0644\u0649 \u062a\u0642\u0631\u064a\u0631 \u0645\u0628\u0633\u0651\u0637: \u0622\u0645\u0646 \u0623\u0645 \u0627\u062d\u062a\u064a\u0627\u0644\u061f';
       }
     }
+  }
+  function updateScanInputForMode(mode) {
+    if (userScanInput) userScanInput.hidden = mode !== 'user';
+    if (socScanInput) socScanInput.hidden = true;
+    if (scanSectionDesc) {
+      scanSectionDesc.textContent = '\u0627\u0644\u0635\u0642 \u0627\u0644\u0645\u062d\u062a\u0648\u0649 \u0623\u0648 \u0627\u0631\u0641\u0639 \u0645\u0644\u0641\u064b\u0627 \u0644\u062a\u0642\u064a\u064a\u0645 \u0645\u0633\u062a\u0648\u0649 \u0627\u0644\u062e\u0637\u0631.';
+    }
+    if (btnSample) btnSample.textContent = '\u062c\u0631\u0628 \u0631\u0633\u0627\u0644\u0629 \u0627\u062d\u062a\u064a\u0627\u0644 \u0646\u0645\u0648\u0630\u062c\u064a\u0629';
+    if (btnScan) btnScan.textContent = '\u0628\u062f\u0621 \u0627\u0644\u062a\u062d\u0644\u064a\u0644 \u0627\u0644\u0623\u0645\u0646\u064a';
+  }
+
+  function readFieldValue(id) {
+    const el = document.getElementById(id);
+    return el ? el.value.trim() : '';
   }
 
   tabs.forEach((tab) => {
@@ -481,7 +589,7 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
   btnSample.addEventListener('click', () => {
     switchTab('text');
     document.getElementById('input-text').value = SAMPLE_SCAM;
-    showToast('تم تحميل رسالة احتيال نموذجية — شغّل التحليل');
+    showToast('\u062a\u0645 \u062a\u062d\u0645\u064a\u0644 \u0631\u0633\u0627\u0644\u0629 \u0627\u062d\u062a\u064a\u0627\u0644 \u0646\u0645\u0648\u0630\u062c\u064a\u0629 \u2014 \u0634\u063a\u0651\u0644 \u0627\u0644\u062a\u062d\u0644\u064a\u0644');
   });
 
   uploadTrigger.addEventListener('click', () => inputScreenshot.click());
@@ -508,18 +616,24 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     const isPdf = file.type === 'application/pdf';
 
     if (!isImage && !isPdf) {
-      showToast('يرجى رفع صورة (JPG, PNG) أو ملف PDF');
+      showToast('???? ??? ???? (JPG, PNG) ?? ??? PDF');
       return;
     }
 
     if (file.size > 10 * 1024 * 1024) {
-      showToast('الملف كبير جداً — الحد الأقصى 10 MB');
+      showToast('????? ???? ???? ? ???? ?????? 10 MB');
       return;
     }
 
     screenshotFile = file;
+    lastScreenshotDataUrl = null;
 
     if (isImage) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        lastScreenshotDataUrl = typeof reader.result === 'string' ? reader.result : null;
+      };
+      reader.readAsDataURL(file);
       previewImg.src = URL.createObjectURL(file);
       previewImg.hidden = false;
       if (uploadFileInfo) uploadFileInfo.hidden = true;
@@ -536,6 +650,7 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
 
   function clearScreenshot() {
     screenshotFile = null;
+    lastScreenshotDataUrl = null;
     inputScreenshot.value = '';
     uploadEmpty.hidden = false;
     uploadPreview.hidden = true;
@@ -552,6 +667,18 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
   btnContactSupport.addEventListener('click', openSupportModal);
   btnCloseChat.addEventListener('click', closeModals);
   btnCloseSupport.addEventListener('click', closeModals);
+  if (btnCaseNotesEdit) btnCaseNotesEdit.addEventListener('click', toggleCaseNotesEdit);
+  if (btnCaseNotesAccept) btnCaseNotesAccept.addEventListener('click', acceptCaseNotes);
+  if (btnReportBank) btnReportBank.addEventListener('click', reportToBank);
+  if (socCaseNotesToolbar) {
+    socCaseNotesToolbar.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-cmd]');
+      if (!btn || caseNotesMode !== 'editing') return;
+      e.preventDefault();
+      document.execCommand(btn.getAttribute('data-cmd'), false, null);
+      if (socCaseNotesEditor) socCaseNotesEditor.focus();
+    });
+  }
   modalBackdrop.addEventListener('click', closeModals);
   chatForm.addEventListener('submit', (e) => { e.preventDefault(); sendChatMessage(); });
 
@@ -574,7 +701,7 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
       case 'screenshot':
         return {
           type: 'Screenshot',
-          text: screenshotFile ? `[ملف: ${screenshotFile.name}]` : '',
+          text: screenshotFile ? `[???: ${screenshotFile.name}]` : '',
           hasImage: !!screenshotFile,
         };
       default:
@@ -604,7 +731,7 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     });
 
     if (text.length > 0 && text.length < 40 && /click|verify|urgent/i.test(text)) {
-      flags.push('رسالة قصيرة جداً بلغة ضاغطة');
+      flags.push('????? ????? ???? ???? ?????');
       score += 10;
     }
 
@@ -616,13 +743,13 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     let score = 15;
 
     if (!url) {
-      return { flags: ['لم يُقدَّم رابط'], score: 0, invalid: true };
+      return { flags: ['?? ??????? ????'], score: 0, invalid: true };
     }
 
     try {
       new URL(url.startsWith('http') ? url : `https://${url}`);
     } catch {
-      return { flags: ['رابط غير صالح أو مشوّه'], score: 85, invalid: false };
+      return { flags: ['???? ??? ???? ?? ?????'], score: 85, invalid: false };
     }
 
     const fullUrl = url.startsWith('http') ? url : `https://${url}`;
@@ -635,7 +762,7 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     });
 
     if (flags.length === 0) {
-      flags.push('لم تُكتشف مؤشرات خطر واضحة — تحقق بشكل مستقل');
+      flags.push('?? ?????? ?????? ??? ????? ? ???? ???? ?????');
       score = 22;
     }
 
@@ -644,24 +771,24 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
 
   function analyzeScreenshot() {
     const flags = [
-      'تم رفع اللقطة — استخراج النص عبر OCR في الإنتاج',
-      'وضع تجريبي: افتراض وجود طلب دفع في المحادثة',
-      'لا يمكن التحقق من هوية المرسل من الصورة وحدها',
-      'لغة استعجال شائعة في لقطات الاحتيال',
+      '?? ??? ?????? ? ??????? ???? ??? OCR ?? ???????',
+      '??? ??????: ?????? ???? ??? ??? ?? ????????',
+      '?? ???? ?????? ?? ???? ?????? ?? ?????? ?????',
+      '??? ??????? ????? ?? ????? ????????',
     ];
     return {
       flags,
       score: 72,
-      explanation: 'في الإنتاج، يستخدم ByteShield ذكاءً بصرياً لقراءة اللقطة وتحديد منصة المراسلة واستخراج النص ومقارنته بأنماط الاحتيال المعروفة. هذا العرض التجريبي يحاكي نتيجة خطر متوسط إلى مرتفع.',
+      explanation: '?? ???????? ?????? ByteShield ????? ?????? ?????? ?????? ?????? ???? ???????? ???????? ???? ???????? ?????? ???????? ????????. ??? ????? ???????? ????? ????? ??? ????? ??? ?????.',
     };
   }
 
   function scoreToLevel(score) {
     const tier = getScoreTier(score);
     const verdicts = {
-      low: 'يبدو آمناً نسبياً — تحقق دائماً بشكل مستقل',
-      medium: 'مشبوه — توخَّ الحذر قبل أي إجراء',
-      high: 'احتيال أو تصيد محتمل — لا تتفاعل',
+      low: '???? ????? ?????? ? ???? ?????? ???? ?????',
+      medium: '????? ? ????? ????? ??? ?? ?????',
+      high: '?????? ?? ???? ????? ? ?? ??????',
     };
     return { level: tier.statusAr, class: tier.levelClass, verdict: verdicts[tier.levelClass] };
   }
@@ -669,44 +796,57 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
   function getRecommendations(score, type) {
     const recs = [];
     if (score >= 61) {
-      recs.push('لا تنقر على أي روابط ولا ترد على الرسالة');
-      recs.push('لا تشارك كلمات المرور أو رموز OTP أو بيانات الدفع');
-      recs.push('تواصل مع الجهة مباشرة عبر موقعها أو تطبيق الإنماء الرسمي');
-      recs.push('أبلغ البنك أو الجهات المختصة بالجرائم الإلكترونية');
+      recs.push('?? ???? ??? ?? ????? ??? ??? ??? ???????');
+      recs.push('?? ????? ????? ?????? ?? ???? OTP ?? ?????? ?????');
+      recs.push('????? ?? ????? ?????? ??? ?????? ?? ????? ??????? ??????');
+      recs.push('???? ????? ?? ?????? ??????? ???????? ???????????');
     } else if (score >= 31) {
-      recs.push('تحقق من المرسل عبر قناة رسمية قبل أي إجراء');
-      recs.push('افحص الرابط قبل النقر للتأكد من الوجهة الحقيقية');
-      recs.push('ابحث عن تقارير مشابهة للاحتيال');
-      recs.push('عند الشك، تجاهل الرسالة واتصل بالدعم الرسمي');
+      recs.push('???? ?? ?????? ??? ???? ????? ??? ?? ?????');
+      recs.push('???? ?????? ??? ????? ?????? ?? ?????? ????????');
+      recs.push('???? ?? ?????? ?????? ????????');
+      recs.push('??? ????? ????? ??????? ????? ?????? ??????');
     } else {
-      recs.push('المحتوى يبدو آمناً نسبياً وفق تحليل الأنماط');
-      recs.push('تحقق من هوية المرسل إذا شعرت بأي شيء غريب');
-      recs.push('لا تشارك الرموز أو البيانات الحساسة أبداً');
+      recs.push('??????? ???? ????? ?????? ??? ????? ???????');
+      recs.push('???? ?? ???? ?????? ??? ???? ??? ??? ????');
+      recs.push('?? ????? ?????? ?? ???????? ??????? ?????');
     }
     if (type === 'URL') {
-      recs.unshift('اكتب عنوان الموقع الرسمي يدوياً بدلاً من النقر على الرابط');
+      recs.unshift('???? ????? ?????? ?????? ?????? ????? ?? ????? ??? ??????');
     }
     if (type === 'Screenshot') {
-      recs.unshift('اطلب من المرسل التحقق من هويته عبر وسيلة اتصال معروفة');
+      recs.unshift('???? ?? ?????? ?????? ?? ????? ??? ????? ????? ??????');
+    }
+    if (type === 'Phishing') {
+      recs.unshift('???? ?????? ????? ????? ????? ???? ??? ??????? ???????');
+    }
+    if (type === 'Process') {
+      recs.unshift('???? ?????? ????? ???? ???????? ???? ???????');
     }
     return recs;
   }
 
   function buildExplanation(text, flags, score, type) {
     const { level } = scoreToLevel(score);
-    const typeAr = { Message: 'رسالة', Email: 'بريد', URL: 'رابط', Screenshot: 'لقطة' }[type] || type;
+    const typeAr = {
+      Message: '?????',
+      Email: '????',
+      URL: '????',
+      Screenshot: '????',
+      Phishing: '???? ????',
+      Process: '??? ?????',
+    }[type] || type;
     const parts = [
-      `حلل ByteShield هذا ${typeAr} وأعطى درجة خطر ${level} (${score}/100).`,
+      `??? ByteShield ??? ${typeAr} ????? ???? ??? ${level} (${score}/100).`,
     ];
     if (flags.length > 0) {
-      parts.push(`رصد ${flags.length} مؤشر${flags.length > 1 ? 'ات' : ''}، منها: ${flags[0]}.`);
+      parts.push(`??? ${flags.length} ????${flags.length > 1 ? '??' : ''}? ????: ${flags[0]}.`);
     }
     if (score >= 61) {
-      parts.push('عدة مؤشرات تطابق حملات احتيال مالي وتصيد معروفة. الجمع بين الاستعجال وطلب البيانات والروابط المشبوهة إشارة قوية على احتيال.');
+      parts.push('??? ?????? ????? ????? ?????? ???? ????? ??????. ????? ??? ????????? ???? ???????? ???????? ???????? ????? ???? ??? ??????.');
     } else if (score >= 31) {
-      parts.push('بعض الأنماط تشبه الهندسة الاجتماعية. الجهات الموثوقة نادراً ما تضغط عليك للتصرف فوراً عبر رسائل غير مطلوبة.');
+      parts.push('??? ??????? ???? ??????? ??????????. ?????? ???????? ?????? ?? ???? ???? ?????? ????? ??? ????? ??? ??????.');
     } else {
-      parts.push('لم تُرصد أنماط تصيد رئيسية، لكن الهندسة الاجتماعية قد تكون خفية. ثق بحدسك إذا شعرت بأي شيء غريب.');
+      parts.push('?? ????? ????? ???? ??????? ??? ??????? ?????????? ?? ???? ????. ?? ????? ??? ???? ??? ??? ????.');
     }
     return parts.join(' ');
   }
@@ -723,7 +863,7 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
       statusMessage: tier.defaultMessage,
       shortExplanation: buildExplanation(text, flags, score, contentType),
       confidence: Math.min(98, Math.max(55, score + 10)),
-      reasoning: flags.length ? flags : ['لم تُرصد مؤشرات خطر واضحة'],
+      reasoning: flags.length ? flags : ['?? ????? ?????? ??? ?????'],
       actionChecklist: getRecommendations(score, contentType),
       riskBreakdown: {
         senderAuthenticity: Math.round(score * 0.8),
@@ -739,7 +879,7 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
       threatType: 'phishing',
       securityTips: getDefaultTips('phishing'),
       source: 'local',
-      analysisNote: 'تحليل محلي (مفتاح OpenAI غير متاح) — للرسائل استخدم مفتاح API صالحاً للدقة الأعلى',
+      analysisNote: '????? ???? (????? OpenAI ??? ????) ? ??????? ?????? ????? API ?????? ????? ??????',
     };
   }
 
@@ -754,22 +894,20 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
 
     if (activeTab === 'screenshot') {
       if (!input.hasImage) {
-        showToast('يرجى رفع صورة أو ملف PDF أولاً');
+        showToast('???? ??? ???? ?? ??? PDF ?????');
         return;
       }
     } else if (!input.text) {
-      showToast('يرجى إدخال محتوى للتحليل');
+      showToast('???? ????? ????? ???????');
       return;
     }
 
     btnScan.classList.add('scanning');
     btnScan.textContent = activeTab === 'url'
-      ? 'جاري تحليل الرابط… (قد يستغرق 30 ث)'
+      ? '\u062c\u0627\u0631\u064a \u062a\u062d\u0644\u064a\u0644 \u0627\u0644\u0631\u0627\u0628\u0637\u2026 (\u0642\u062f \u064a\u0633\u062a\u063a\u0631\u0642 30 \u062b)'
       : activeTab === 'screenshot'
-        ? 'جاري تحليل الملف… (قد يستغرق دقيقة)'
-        : 'جاري التحليل…';
-
-    showSocLoading();
+        ? '\u062c\u0627\u0631\u064a \u062a\u062d\u0644\u064a\u0644 \u0627\u0644\u0645\u0644\u0641\u2026 (\u0642\u062f \u064a\u0633\u062a\u063a\u0631\u0642 \u062f\u0642\u064a\u0642\u0629)'
+      : '\u062c\u0627\u0631\u064a \u0627\u0644\u062a\u062d\u0644\u064a\u0644\u2026';
 
     try {
       if (activeTab === 'screenshot') {
@@ -783,7 +921,7 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
             body: formData,
           });
         } catch {
-          showToast('تعذر الاتصال بالخادم — افتح http://localhost:3000');
+          showToast('???? ??????? ??????? ? ???? http://localhost:3000');
           return;
         }
 
@@ -791,16 +929,16 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
         try {
           result = await response.json();
         } catch {
-          showToast('تعذر قراءة رد الخادم');
+          showToast('???? ????? ?? ??????');
           return;
         }
 
         if (!response.ok || !result.success) {
-          const message = result.error || 'فشل تحليل الملف';
+          const message = result.error || '??? ????? ?????';
           if (message.includes('429') || message.toLowerCase().includes('quota')) {
-            showToast('تم تجاوز حد OpenAI — انتظر دقيقة وحاول مجدداً');
+            showToast('?? ????? ?? OpenAI ? ????? ????? ????? ??????');
           } else if (isOpenAiKeyError(message)) {
-            showToast('مفتاح OpenAI غير صالح — حدّث backend/.env');
+            showToast('????? OpenAI ??? ???? ? ???? backend/.env');
           } else {
             showToast(message);
           }
@@ -815,7 +953,9 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
       }
 
       const endpoint = activeTab === 'url' ? getPredictUrlEndpoint() : getAnalyzeUrl();
-      const payload = activeTab === 'url' ? { url: input.text } : { text: input.text };
+      const payload = activeTab === 'url'
+        ? { url: input.text }
+        : { text: input.text, contentType: input.type };
 
       let response;
       try {
@@ -827,7 +967,7 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
       } catch {
         const report = buildLocalReport(input.text, input.type);
         finalizeAnalysis(input.text, input.type, report);
-        showToast('تعذر الاتصال بالخادم — تم استخدام التحليل المحلي');
+        showToast('???? ??????? ??????? ? ?? ??????? ??????? ??????');
         return;
       }
 
@@ -838,33 +978,33 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
         if (activeTab !== 'url') {
           const report = buildLocalReport(input.text, input.type);
           finalizeAnalysis(input.text, input.type, report);
-          showToast('تعذر قراءة رد الخادم — تم استخدام التحليل المحلي');
+          showToast('\u062a\u0639\u0630\u0631 \u0642\u0631\u0627\u0621\u0629 \u0631\u062f \u0627\u0644\u062e\u0627\u062f\u0645 \u2014 \u062a\u0645 \u0627\u0633\u062a\u062e\u062f\u0627\u0645 \u0627\u0644\u062a\u062d\u0644\u064a\u0644 \u0627\u0644\u0645\u062d\u0644\u064a');
           return;
         }
-        showToast('تعذر الاتصال بالخادم — افتح http://localhost:3000');
+        showToast('\u062a\u0639\u0630\u0631 \u0627\u0644\u0627\u062a\u0635\u0627\u0644 \u0628\u0627\u0644\u062e\u0627\u062f\u0645 \u2014 \u0627\u0641\u062a\u062d http://localhost:3000');
         return;
       }
 
       if (!response.ok || !result.success) {
-        const message = result.error || 'فشل التحليل — تأكد من تشغيل الخادم';
+        const message = result.error || '??? ??????? ? ???? ?? ????? ??????';
 
         if (activeTab !== 'url' || isOpenAiKeyError(message)) {
           const report = buildLocalReport(input.text, input.type);
           finalizeAnalysis(input.text, input.type, report);
           if (isOpenAiKeyError(message)) {
-            showToast('مفتاح OpenAI غير صالح — تم استخدام التحليل المحلي. حدّث backend/.env');
+            showToast('????? OpenAI ??? ???? ? ?? ??????? ??????? ??????. ???? backend/.env');
           } else {
-            showToast('فشل التحليل السحابي — تم استخدام التحليل المحلي');
+            showToast('??? ??????? ??????? ? ?? ??????? ??????? ??????');
           }
           return;
         }
 
         if (message.includes('429') || message.toLowerCase().includes('quota') || message.toLowerCase().includes('rate limit')) {
-          showToast('تم تجاوز حد OpenAI — انتظر دقيقة وحاول مجدداً');
+          showToast('?? ????? ?? OpenAI ? ????? ????? ????? ??????');
         } else if (activeTab === 'url') {
           const report = buildLocalReport(input.text, input.type);
           finalizeAnalysis(input.text, input.type, report);
-          showToast('تعذر تشغيل نموذج التعلم العميق — تم استخدام التحليل المحلي');
+          showToast('???? ????? ????? ?????? ?????? ? ?? ??????? ??????? ??????');
         } else {
           showToast(message);
         }
@@ -877,10 +1017,10 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
       finalizeAnalysis(input.text, input.type, report);
     } catch (error) {
       console.error(error);
-      showToast('تعذر الاتصال بالخادم — افتح http://localhost:3000 وشغّل الباكند من مجلد backend');
+      showToast('???? ??????? ??????? ? ???? http://localhost:3000 ????? ??????? ?? ???? backend');
     } finally {
       btnScan.classList.remove('scanning');
-      btnScan.textContent = 'بدء التحليل الأمني';
+      btnScan.textContent = "\u0628\u062f\u0621 \u0627\u0644\u062a\u062d\u0644\u064a\u0644 \u0627\u0644\u0623\u0645\u0646\u064a";
     }
   }
 
@@ -944,12 +1084,12 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
 
   function buildChatContext(text, report) {
     return [
-      `الرسالة: ${text}`,
-      `درجة الخطر: ${report.score}/100`,
-      `الحالة: ${report.tier.statusAr}`,
-      `الشرح: ${report.shortExplanation}`,
-      `الأسباب: ${report.reasoning.join('؛ ')}`,
-      `التوصيات: ${report.actionChecklist.join('؛ ')}`,
+      `???????: ${text}`,
+      `???? ?????: ${report.score}/100`,
+      `??????: ${report.tier.statusAr}`,
+      `?????: ${report.shortExplanation}`,
+      `???????: ${report.reasoning.join('? ')}`,
+      `????????: ${report.actionChecklist.join('? ')}`,
     ].join('\n');
   }
 
@@ -958,6 +1098,7 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     if (socLoadingEl) socLoadingEl.hidden = false;
     if (socReportEl) { socReportEl.hidden = true; socReportEl.innerHTML = ''; }
     if (socEmptyEl) socEmptyEl.hidden = true;
+    if (socCaseNotesEl) socCaseNotesEl.hidden = true;
     if (resultsSoc) resultsSoc.hidden = activeMode !== 'soc';
     updateResultsVisibility();
   }
@@ -976,7 +1117,7 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
       incident: {
         title: 'Suspected phishing / fraud incident (local triage)',
         executiveSummary: report.shortExplanation || 'Local pattern-based triage without OpenAI SOC engine.',
-        executiveSummaryAr: report.shortExplanation || 'تحليل محلي — فعّل OpenAI لإنشاء تقرير SOC كامل.',
+        executiveSummaryAr: '',
         severity,
         status: score >= 61 ? 'Open' : 'Triaging',
         classification: report.threatType || 'Phishing',
@@ -1022,7 +1163,7 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
         huntingQueries: ['Search proxy logs for submitted URLs/domains'],
       },
       references: ['MITRE ATT&CK T1566', 'NIST SP 800-61'],
-      analystNotes: 'Generated by local fallback — connect OpenAI for full enterprise SOC report.',
+      analystNotes: 'Generated by local fallback ? connect OpenAI for full enterprise SOC report.',
       source: 'local',
     };
   }
@@ -1089,7 +1230,7 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
                 <tr>
                   <td class="soc-ioc-table__value" dir="ltr">${escapeHtml(item.value || item)}</td>
                   <td><span class="soc-sev soc-sev--${socSeverityClass(item.severity || 'medium')}">${escapeHtml(item.severity || 'medium')}</span></td>
-                  <td>${escapeHtml(item.context || '—')}</td>
+                  <td>${escapeHtml(item.context || '?')}</td>
                 </tr>`).join('')}
             </tbody>
           </table>
@@ -1106,13 +1247,328 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
           ${steps.map((step) => `
             <li class="soc-playbook__step">
               <div class="soc-playbook__head">
-                <span class="soc-playbook__num">${step.step || '•'}</span>
+                <span class="soc-playbook__num">${step.step || '?'}</span>
                 <strong>${escapeHtml(step.action || step)}</strong>
               </div>
-              ${step.owner ? `<span class="soc-playbook__meta">Owner: ${escapeHtml(step.owner)} · ETA: ${escapeHtml(step.estimatedTime || 'N/A')}</span>` : ''}
+              ${step.owner ? `<span class="soc-playbook__meta">Owner: ${escapeHtml(step.owner)} ? ETA: ${escapeHtml(step.estimatedTime || 'N/A')}</span>` : ''}
             </li>`).join('')}
         </ol>
       </div>`;
+  }
+
+  function formatCaseNoteLines(items) {
+    if (!items || !items.length) return ['?'];
+    return items.map((item) => String(item).trim()).filter(Boolean);
+  }
+
+  function collectIocValues(ioc) {
+    if (!ioc) return [];
+    const buckets = ['urls', 'domains', 'ipAddresses', 'emailAddresses', 'phoneNumbers', 'fileHashes', 'other'];
+    const values = [];
+    buckets.forEach((key) => {
+      (ioc[key] || []).forEach((item) => {
+        const value = typeof item === 'string' ? item : (item?.value || '');
+        if (value) values.push(value);
+      });
+    });
+    return values;
+  }
+
+  function determineAlertDisposition(soc, userReport) {
+    const inc = soc?.incident || {};
+    const score = Number(inc.riskScore ?? userReport?.score ?? 0);
+    const severity = String(inc.severity || '').toLowerCase();
+    const classification = String(inc.classification || '').toLowerCase();
+    const status = String(inc.status || '').toLowerCase();
+    const iocCount = collectIocValues(soc?.indicatorsOfCompromise || {}).length;
+    const confidence = Number(inc.confidence ?? userReport?.confidence ?? 0);
+
+    const benignHints = /benign|false.?positive|informational|noise|whitelist|expected/.test(
+      `${classification} ${status} ${inc.executiveSummary || ''} ${inc.title || ''}`
+    );
+    const maliciousHints = /phish|fraud|malware|credential|bec|spear|smish|vish|compromise|exploit/.test(
+      `${classification} ${inc.title || ''} ${inc.attackVector || ''}`
+    );
+
+    let disposition = 'True Positive';
+    let reason = '';
+
+    if (
+      benignHints
+      || severity === 'informational'
+      || (severity === 'low' && score < 35 && iocCount === 0)
+      || (score <= 30 && !maliciousHints)
+    ) {
+      disposition = 'False Positive';
+      reason = `AI assessed this alert as False Positive based on severity ${inc.severity || 'Unknown'}, risk score ${score}/100`
+        + (iocCount ? `, and ${iocCount} weak/low-priority indicators.` : ', with no strong malicious indicators.')
+        + (confidence ? ` Confidence ${confidence}%.` : '');
+    } else {
+      disposition = 'True Positive';
+      reason = `AI assessed this alert as True Positive based on severity ${inc.severity || 'Unknown'}, risk score ${score}/100`
+        + (classification ? `, classification ${inc.classification}` : '')
+        + (iocCount ? `, and ${iocCount} observable indicator(s).` : '.')
+        + (confidence ? ` Confidence ${confidence}%.` : '');
+    }
+
+    return { disposition, reason, score, severity: inc.severity || 'Unknown' };
+  }
+
+  function renderCaseNotesDisposition(dispositionInfo) {
+    if (!socCaseNotesDisposition || !socDispositionValue || !socDispositionReason) return;
+    const isTp = dispositionInfo.disposition === 'True Positive';
+    socDispositionValue.textContent = dispositionInfo.disposition;
+    socDispositionValue.classList.toggle('soc-disposition-value--tp', isTp);
+    socDispositionValue.classList.toggle('soc-disposition-value--fp', !isTp);
+    socDispositionReason.textContent = dispositionInfo.reason;
+    socCaseNotesDisposition.hidden = false;
+  }
+
+  function buildCaseNotesSections(soc, userReport, dispositionInfo) {
+    const inc = soc?.incident || {};
+    const playbook = soc?.containmentPlaybook || {};
+    const ioc = soc?.indicatorsOfCompromise || {};
+    const timeline = Array.isArray(inc.timeline) ? inc.timeline : [];
+    const score = dispositionInfo?.score ?? inc.riskScore ?? userReport?.score ?? '?';
+    const severity = englishOnlyText(inc.severity, 'Unknown');
+    const classification = englishOnlyText(inc.classification, lastContentType || 'Unclassified');
+    const disposition = dispositionInfo?.disposition || 'True Positive';
+
+    const timeLines = timeline.length
+      ? timeline.map((t) => {
+        const phase = englishOnlyText(t.phase, 'Activity');
+        const stamp = englishOnlyText(t.timestamp, 'N/A');
+        const desc = englishOnlyText(t.description, 'No description provided');
+        return `${phase}: ${stamp} ? ${desc}`;
+      })
+      : [
+        `Detected: ${soc?.generatedAt ? formatSocDateTime(new Date(soc.generatedAt)) : formatSocDateTime()}`,
+        `Attack vector: ${englishOnlyText(inc.attackVector, 'Unknown')}`,
+      ];
+
+    const affected = formatCaseNoteLines(
+      englishOnlyList(
+        inc.affectedAssets,
+        [classification, lastContentType || 'Endpoint / messaging channel']
+      )
+    );
+
+    const classificationReason = formatCaseNoteLines(
+      englishOnlyList(
+        [
+          dispositionInfo?.reason || '',
+          englishOnlyText(inc.executiveSummary),
+          englishOnlyText(inc.impactAssessment) ? `Impact: ${englishOnlyText(inc.impactAssessment)}` : '',
+          englishOnlyText(inc.attackVector) ? `Vector: ${englishOnlyText(inc.attackVector)}` : '',
+        ].filter(Boolean),
+        [
+          `AI disposition: ${disposition}.`,
+          `Alert classified as ${classification} with risk score ${score}/100 and severity ${severity}.`,
+        ]
+      )
+    );
+
+    const escalateReason = formatCaseNoteLines(
+      englishOnlyList(
+        playbook.escalationCriteria,
+        disposition === 'False Positive'
+          ? [
+            'No escalation required unless new corroborating evidence appears',
+            'Close as False Positive after analyst validation and document rationale',
+          ]
+          : [
+            `Severity ${severity} with risk score ${score}/100`,
+            playbook.priority
+              ? `Playbook priority ${englishOnlyText(playbook.priority, 'P2')}`
+              : 'Potential customer financial loss / credential harvest / endpoint compromise',
+          ]
+      )
+    );
+
+    const remediationSource = [
+      ...(playbook.immediateActions || []),
+      ...(playbook.shortTermActions || []),
+    ].map((step) => englishOnlyText(step.action || step));
+
+    const remediation = formatCaseNoteLines(
+      englishOnlyList(
+        remediationSource,
+        disposition === 'False Positive'
+          ? [
+            'Tune detection rule / suppress known-benign pattern if validated',
+            'Document FP rationale in the ticket and close the alert',
+            'Monitor for recurrence with updated context',
+          ]
+          : [
+            'Block malicious indicators at email gateway / proxy / EDR',
+            'Contain affected host or mailbox and reset credentials if needed',
+            'Notify impacted user and monitor for related alerts',
+          ]
+      )
+    );
+
+    const indicatorsRaw = collectIocValues(ioc).map((value) => englishOnlyText(value)).filter(Boolean);
+    const indicators = formatCaseNoteLines(
+      indicatorsRaw.length
+        ? indicatorsRaw
+        : [
+          englishOnlyText(inc.attackVector, 'Review original evidence for URLs, senders, hosts, and process artifacts'),
+        ]
+    );
+
+    return {
+      'Time of activity:': timeLines,
+      'List of Affected Entities:': affected,
+      'Reason for Classification:': classificationReason,
+      'Reason for Escalating the Alert:': escalateReason,
+      'Recommended Remediation Actions:': remediation,
+      'List of Attack Indicators:': indicators,
+    };
+  }
+
+  function buildCaseNotesHtml(sections) {
+    return CASE_NOTE_SECTIONS.map((label) => {
+      const lines = sections[label] || ['?'];
+      const body = lines.length === 1
+        ? `<p>${escapeHtml(lines[0])}</p>`
+        : `<ul>${lines.map((line) => `<li>${escapeHtml(line)}</li>`).join('')}</ul>`;
+      return `<strong class="soc-case-label">${escapeHtml(label)}</strong>${body}`;
+    }).join('');
+  }
+
+  function setCaseNotesStatus(mode) {
+    caseNotesMode = mode;
+    if (!socCaseNotesStatus) return;
+    socCaseNotesStatus.classList.remove('soc-case-notes__status--editing', 'soc-case-notes__status--accepted');
+    if (mode === 'editing') {
+      socCaseNotesStatus.textContent = 'Editing';
+      socCaseNotesStatus.classList.add('soc-case-notes__status--editing');
+    } else if (mode === 'accepted') {
+      socCaseNotesStatus.textContent = 'Accepted';
+      socCaseNotesStatus.classList.add('soc-case-notes__status--accepted');
+    } else {
+      socCaseNotesStatus.textContent = 'AI Draft';
+    }
+  }
+
+  function populateCaseNotesFromSoc(soc, userReport) {
+    if (!socCaseNotesEl || !socCaseNotesEditor) return;
+
+    const dispositionInfo = determineAlertDisposition(soc, userReport || lastUserReport);
+    renderCaseNotesDisposition(dispositionInfo);
+
+    const sections = buildCaseNotesSections(soc, userReport || lastUserReport, dispositionInfo);
+    const html = buildCaseNotesHtml(sections);
+    socCaseNotesEditor.innerHTML = html;
+    socCaseNotesEditor.contentEditable = 'false';
+    if (socCaseNotesToolbar) socCaseNotesToolbar.hidden = true;
+    if (btnCaseNotesEdit) btnCaseNotesEdit.textContent = 'Edit';
+    caseNotesAcceptedHtml = '';
+    setCaseNotesStatus('draft');
+
+    if (lastSocReport) {
+      lastSocReport = {
+        ...lastSocReport,
+        aiDisposition: dispositionInfo.disposition,
+        aiDispositionReason: dispositionInfo.reason,
+      };
+    }
+
+    socCaseNotesEl.hidden = false;
+  }
+
+  function toggleCaseNotesEdit() {
+    if (!socCaseNotesEditor || !socCaseNotesEl || socCaseNotesEl.hidden) return;
+
+    if (caseNotesMode === 'editing') {
+      socCaseNotesEditor.contentEditable = 'false';
+      if (socCaseNotesToolbar) socCaseNotesToolbar.hidden = true;
+      if (btnCaseNotesEdit) btnCaseNotesEdit.textContent = 'Edit';
+      setCaseNotesStatus(caseNotesAcceptedHtml && socCaseNotesEditor.innerHTML === caseNotesAcceptedHtml ? 'accepted' : 'draft');
+      showToast('Editing stopped');
+      return;
+    }
+
+    socCaseNotesEditor.contentEditable = 'true';
+    if (socCaseNotesToolbar) socCaseNotesToolbar.hidden = false;
+    if (btnCaseNotesEdit) btnCaseNotesEdit.textContent = 'Done';
+    setCaseNotesStatus('editing');
+    socCaseNotesEditor.focus();
+  }
+
+  function acceptCaseNotes() {
+    if (!socCaseNotesEditor || !socCaseNotesEl || socCaseNotesEl.hidden) return;
+
+    socCaseNotesEditor.contentEditable = 'false';
+    if (socCaseNotesToolbar) socCaseNotesToolbar.hidden = true;
+    if (btnCaseNotesEdit) btnCaseNotesEdit.textContent = 'Edit';
+    caseNotesAcceptedHtml = socCaseNotesEditor.innerHTML;
+    setCaseNotesStatus('accepted');
+
+    if (lastSocReport) {
+      lastSocReport = {
+        ...lastSocReport,
+        analystCaseNotesHtml: caseNotesAcceptedHtml,
+        analystCaseNotesAcceptedAt: new Date().toISOString(),
+      };
+    }
+
+    showToast('Analyst case notes accepted');
+  }
+
+  async function reportToBank() {
+    if (!lastUserReport) {
+      showToast('Run an analysis first');
+      return;
+    }
+
+    const score = Number(lastUserReport.score) || 0;
+    if (score < 31) {
+      showToast('Only suspicious or high-risk results can be submitted');
+      return;
+    }
+
+    if (btnReportBank) {
+      btnReportBank.disabled = true;
+      btnReportBank.textContent = 'Submitting\u2026';
+    }
+
+    try {
+      const response = await fetch(getApiUrl('/api/cases'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content: lastEvidenceText,
+          contentType: lastContentType,
+          screenshotDataUrl: lastScreenshotDataUrl,
+          fraudProbability: score,
+          aiExplanation: lastUserReport.shortExplanation,
+          reasoning: lastUserReport.reasoning || [],
+          fraudCategory: lastUserReport.threatType || 'general',
+          threatType: lastUserReport.threatType || 'general',
+        }),
+      });
+
+      const result = await response.json();
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Failed to submit fraud report');
+      }
+
+      if (btnReportBank) {
+        btnReportBank.disabled = true;
+        btnReportBank.textContent = 'Submitted \u2713';
+      }
+      if (reportBankHint) reportBankHint.hidden = false;
+      showToast(`Fraud report submitted \u2014 ${result.case.id}`);
+      if (activeMode === 'fraud') renderFraudOpsDashboard();
+    } catch (err) {
+      console.error(err);
+      if (btnReportBank) {
+        btnReportBank.disabled = false;
+        btnReportBank.textContent = 'Submit Fraud Report';
+      }
+      showToast(err.message || 'Could not submit fraud report');
+    }
   }
 
   function renderSocReport(soc) {
@@ -1135,7 +1591,7 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
       <header class="soc-header">
         <div class="soc-header__meta">
           <span class="soc-report-id" dir="ltr">${escapeHtml(soc.reportId || 'BS-IR-UNKNOWN')}</span>
-          <span class="soc-report-time">${escapeHtml(soc.generatedAt ? formatSaudiDateTime(new Date(soc.generatedAt)) : formatSaudiDateTime())}</span>
+          <span class="soc-report-time">${escapeHtml(soc.generatedAt ? formatSocDateTime(new Date(soc.generatedAt)) : formatSocDateTime())}</span>
         </div>
         <h3 class="soc-header__title">${escapeHtml(inc.title || 'Security Incident Report')}</h3>
         <div class="soc-header__badges">
@@ -1146,19 +1602,20 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
         </div>
       </header>
 
-      ${inc.executiveSummaryAr ? `<p class="soc-summary-ar">${escapeHtml(inc.executiveSummaryAr)}</p>` : ''}
-      <p class="soc-summary">${escapeHtml(inc.executiveSummary || inc.summary || '')}</p>
+      ${(inc.executiveSummary || inc.summary)
+        ? `<p class="soc-summary">${escapeHtml(inc.executiveSummary || inc.summary)}</p>`
+        : ''}
 
       <div class="soc-metrics">
-        <div class="soc-metric"><span>Risk Score</span><strong>${escapeHtml(String(inc.riskScore ?? '—'))}/100</strong></div>
-        <div class="soc-metric"><span>Confidence</span><strong>${escapeHtml(String(inc.confidence ?? '—'))}%</strong></div>
-        <div class="soc-metric"><span>Attack Vector</span><strong>${escapeHtml(inc.attackVector || '—')}</strong></div>
-        <div class="soc-metric"><span>Kill Chain</span><strong>${escapeHtml(mitre.killChainPhase || '—')}</strong></div>
+        <div class="soc-metric"><span>Risk Score</span><strong>${escapeHtml(String(inc.riskScore ?? '?'))}/100</strong></div>
+        <div class="soc-metric"><span>Confidence</span><strong>${escapeHtml(String(inc.confidence ?? '?'))}%</strong></div>
+        <div class="soc-metric"><span>Attack Vector</span><strong>${escapeHtml(inc.attackVector || '?')}</strong></div>
+        <div class="soc-metric"><span>Kill Chain</span><strong>${escapeHtml(mitre.killChainPhase || '?')}</strong></div>
       </div>
 
       <div class="soc-section">
         <h4 class="soc-section__title">Impact Assessment</h4>
-        <p class="soc-text">${escapeHtml(inc.impactAssessment || '—')}</p>
+        <p class="soc-text">${escapeHtml(inc.impactAssessment || '?')}</p>
         ${inc.affectedAssets?.length ? `<ul class="soc-tags">${inc.affectedAssets.map((a) => `<li>${escapeHtml(a)}</li>`).join('')}</ul>` : ''}
       </div>
 
@@ -1220,19 +1677,19 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
           <p class="soc-text">${escapeHtml(soc.analystNotes)}</p>
         </div>` : ''}
 
-      ${soc.source === 'local' ? '<p class="soc-fallback-note">⚠ Local fallback report — configure OpenAI for full enterprise SOC output.</p>' : ''}
+      ${soc.source === 'local' ? '<p class="soc-fallback-note">? Local fallback report ? configure OpenAI for full enterprise SOC output.</p>' : ''}
     `;
 
+    populateCaseNotesFromSoc(soc, lastUserReport);
     updateResultsVisibility();
   }
 
   function finalizeAnalysis(text, contentType, report) {
     lastUserReport = report;
+    lastEvidenceText = text;
+    lastContentType = contentType;
     lastAnalysisContext = buildChatContext(text, report);
     renderResults(report);
-    fetchAndRenderSocReport(text, contentType, report);
-    updateFinancialImpactDashboard();
-    fetchFinancialForecast(text, contentType, report);
     updateResultsVisibility();
   }
 
@@ -1265,22 +1722,30 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
       ? `${report.analysisNote}\n\n${shortExplanation}`
       : shortExplanation;
 
-    const recSummary = score <= 30 ? 'لا يلزم إجراء فوري' : score <= 60 ? 'توخَّ الحذر وتحقق' : 'إجراءات عاجلة مطلوبة';
+    const recSummary = score <= 30 ? '?? ???? ????? ????' : score <= 60 ? '????? ????? ?????' : '??????? ????? ??????';
     document.getElementById('stat-rec-text').textContent = recSummary;
 
     const indicatorCount = reasoning.length;
     const warnText = indicatorCount === 0
-      ? 'لم تُرصد مؤشرات واضحة'
+      ? '?? ????? ?????? ?????'
       : indicatorCount <= 2
-        ? 'مؤشرات منخفضة'
+        ? '?????? ??????'
         : indicatorCount <= 4
-          ? 'مؤشرات متوسطة'
-          : 'مؤشرات مرتفعة';
-    document.getElementById('stat-warn-text').textContent = `${indicatorCount} — ${warnText}`;
+          ? '?????? ??????'
+          : '?????? ??????';
+    document.getElementById('stat-warn-text').textContent = `${indicatorCount} ? ${warnText}`;
 
     document.getElementById('recommend-summary').textContent = shortExplanation;
     document.getElementById('recommend-checklist').innerHTML = actionChecklist
       .map((a) => `<li>${escapeHtml(a)}</li>`).join('');
+
+    if (btnReportBank) {
+      const suspicious = (Number(score) || 0) >= 31;
+      btnReportBank.disabled = false;
+      btnReportBank.textContent = 'Submit Fraud Report';
+      btnReportBank.hidden = activeMode !== 'user' || !suspicious;
+    }
+    if (reportBankHint) reportBankHint.hidden = true;
 
     document.getElementById('eval-bars').innerHTML = EVAL_METRICS.map(({ key, label }) => {
       const riskVal = riskBreakdown[key] ?? score;
@@ -1305,7 +1770,7 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     document.getElementById('detailed-analysis').textContent = detailedAnalysis;
     document.getElementById('reason-list').innerHTML = reasoning.length
       ? reasoning.map((r) => `<li>${escapeHtml(r)}</li>`).join('')
-      : '<li>لم تُرصد مؤشرات تصيد واضحة</li>';
+      : '<li>?? ????? ?????? ???? ?????</li>';
 
     updateBankFooter(detectedBanks, bankAdvice, securityTips);
 
@@ -1317,24 +1782,24 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     const tipsList = document.getElementById('bank-footer-tips');
 
     if (detectedBanks && detectedBanks.length) {
-      title.textContent = `إرشادات ${detectedBanks[0]}`;
+      title.textContent = `??????? ${detectedBanks[0]}`;
       const tips = securityTips && securityTips.length ? securityTips : [
-        'لا تشارك بياناتك البنكية عبر الرسائل',
-        'تحقق من عنوان الموقع الرسمي',
-        'لا تُدخل رمز OTP لأي جهة تطلبه عبر SMS',
-        'استخدم التطبيق الرسمي فقط',
+        '?? ????? ??????? ??????? ??? ???????',
+        '???? ?? ????? ?????? ??????',
+        '?? ????? ??? OTP ??? ??? ????? ??? SMS',
+        '?????? ??????? ?????? ???',
       ];
       if (bankAdvice) {
         tips.unshift(bankAdvice);
       }
-      tipsList.innerHTML = tips.slice(0, 5).map((t) => `<li><span>🛡️</span>${escapeHtml(t)}</li>`).join('');
+      tipsList.innerHTML = tips.slice(0, 5).map((t) => `<li><span>???</span>${escapeHtml(t)}</li>`).join('');
     } else {
-      title.textContent = 'إرشادات البنوك';
+      title.textContent = '??????? ??????';
       tipsList.innerHTML = `
-        <li><span>🛡️</span>لا تشارك بياناتك البنكية عبر الرسائل</li>
-        <li><span>🛡️</span>تحقق من عنوان الموقع الرسمي</li>
-        <li><span>🛡️</span>لا تُدخل رمز OTP لأي جهة تطلبه عبر SMS</li>
-        <li><span>🛡️</span>استخدم التطبيق الرسمي فقط</li>`;
+        <li><span>???</span>?? ????? ??????? ??????? ??? ???????</li>
+        <li><span>???</span>???? ?? ????? ?????? ??????</li>
+        <li><span>???</span>?? ????? ??? OTP ??? ??? ????? ??? SMS</li>
+        <li><span>???</span>?????? ??????? ?????? ???</li>`;
     }
   }
 
@@ -1361,7 +1826,7 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     supportModal.hidden = true;
     chatHistory = [];
     chatMessages.innerHTML = '';
-    appendChatMessage('bot', 'مرحباً! أنا ByteShield AI. لديّ نتيجة تحليلك — اسألني أي شيء: لماذا مشبوهة؟ هل أُبلّغ؟ ماذا لو نقرت الرابط؟');
+    appendChatMessage('bot', '??????! ??? ByteShield AI. ???? ????? ?????? ? ?????? ?? ???: ????? ?????? ?? ?????? ???? ?? ???? ??????');
     modalBackdrop.hidden = false;
     chatModal.hidden = false;
     document.body.style.overflow = 'hidden';
@@ -1393,7 +1858,6 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
       closeModals();
     }
   });
-
   function appendChatMessage(role, text) {
     const el = document.createElement('div');
     el.className = `chat-msg chat-msg--${role}`;
@@ -1412,7 +1876,7 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     chatHistory.push({ role: 'user', content: text });
     btnChatSend.disabled = true;
 
-    const typing = appendChatMessage('bot', 'جاري الكتابة…');
+    const typing = appendChatMessage('bot', '???? ????????');
     typing.classList.add('chat-msg--typing');
 
     try {
@@ -1425,14 +1889,14 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
       let result;
       try { result = await response.json(); } catch {
         typing.remove();
-        showToast('تعذر الاتصال بالمساعد');
+        showToast('???? ??????? ????????');
         return;
       }
 
       typing.remove();
 
       if (!response.ok || !result.success) {
-        showToast(result.error || 'فشل الإرسال');
+        showToast(result.error || '??? ???????');
         chatHistory.pop();
         return;
       }
@@ -1442,7 +1906,7 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     } catch (err) {
       typing.remove();
       console.error(err);
-      showToast('تعذر الاتصال بالمساعد');
+      showToast('???? ??????? ????????');
       chatHistory.pop();
     } finally {
       btnChatSend.disabled = false;
@@ -1467,7 +1931,390 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
 
   function escapeHtml(str) {
     const div = document.createElement('div');
-    div.textContent = str;
+    div.textContent = str == null ? '' : String(str);
     return div.innerHTML;
   }
+
+
+
+  // -----------------------------------------------------------------------
+  // Fraud Operations — server-backed case portal
+  // -----------------------------------------------------------------------
+
+  function scoreLevelClass(score) {
+    const n = Number(score) || 0;
+    if (n >= 61) return 'high';
+    if (n >= 31) return 'medium';
+    return 'low';
+  }
+
+  function statusBadgeClass(status) {
+    if (status === 'Pending Review') return 'pending';
+    if (status === 'Under Review') return 'open';
+    if (status === 'Closed') return 'closed';
+    return 'open';
+  }
+
+  async function renderFraudOpsDashboard() {
+    try {
+      const params = new URLSearchParams();
+      if (fraudFilter && fraudFilter !== 'all') params.set('status', fraudFilter);
+      if (fraudCategory && fraudCategory !== 'all') params.set('category', fraudCategory);
+      if (fraudSearchQuery) params.set('q', fraudSearchQuery);
+
+      const [casesRes, campaignsRes] = await Promise.all([
+        fetch(getApiUrl(`/api/cases?${params.toString()}`)),
+        fetch(getApiUrl('/api/campaigns')),
+      ]);
+
+      const casesJson = await casesRes.json();
+      const campaignsJson = await campaignsRes.json();
+
+      if (!casesRes.ok || !casesJson.success) {
+        throw new Error(casesJson.error || 'Failed to load cases');
+      }
+
+      fraudCasesCache = casesJson.cases || [];
+      const stats = casesJson.stats || {};
+
+      if (fraudKpiTotal) fraudKpiTotal.textContent = String(stats.total || 0);
+      if (fraudKpiPending) fraudKpiPending.textContent = String(stats.pending || 0);
+      if (fraudKpiReview) fraudKpiReview.textContent = String(stats.underReview || 0);
+      if (fraudKpiClosed) fraudKpiClosed.textContent = String(stats.closed || 0);
+      if (fraudQueueCount) fraudQueueCount.textContent = String(fraudCasesCache.length);
+
+      renderFraudCaseList();
+      renderFraudCampaigns(campaignsJson.success ? campaignsJson.campaigns : []);
+    } catch (err) {
+      console.error(err);
+      if (fraudCaseList) {
+        fraudCaseList.innerHTML = `<p class="fraud-ops__empty">Could not load cases.<br>${escapeHtml(err.message)}</p>`;
+      }
+    }
+  }
+
+  function renderFraudCampaigns(campaigns) {
+    if (!fraudCampaignsList) return;
+    const active = (campaigns || []).filter((c) => (c.reportCount || 0) >= 1);
+    if (!active.length) {
+      fraudCampaignsList.innerHTML = '<li class="fraud-campaigns__empty">No active campaigns yet.</li>';
+      return;
+    }
+    fraudCampaignsList.innerHTML = active.slice(0, 8).map((c) => `
+      <li class="fraud-campaign">
+        <strong>${escapeHtml(c.title || 'Campaign')}</strong>
+        <span>${c.reportCount || 0} report${(c.reportCount || 0) === 1 ? '' : 's'}</span>
+      </li>`).join('');
+  }
+
+  function renderFraudCaseList() {
+    if (!fraudCaseList) return;
+
+    if (!fraudCasesCache.length) {
+      fraudCaseList.innerHTML = `<p class="fraud-ops__empty" id="fraud-list-empty">No reported cases yet.<br>Customer fraud reports appear here.</p>`;
+      return;
+    }
+
+    fraudCaseList.innerHTML = fraudCasesCache.map((c) => {
+      const isSelected = c.id === selectedFraudCaseId;
+      const levelClass = scoreLevelClass(c.fraudProbability);
+      const date = c.submittedAt
+        ? new Date(c.submittedAt).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })
+        : '\u2014';
+      const preview = (c.preview || c.fraudCategory || 'Customer report').toString().slice(0, 72);
+      return `
+        <button type="button" class="fraud-case${isSelected ? ' fraud-case--active' : ''}" data-case-id="${escapeHtml(c.id)}">
+          <div class="fraud-case__top">
+            <span class="fraud-case__id">${escapeHtml(c.id)}</span>
+            <span class="fraud-case__score fraud-case__score--${levelClass}">${c.fraudProbability || 0}%</span>
+          </div>
+          <p class="fraud-case__title">${escapeHtml(preview)}</p>
+          <p class="fraud-case__meta">${escapeHtml(c.status)} \u00b7 ${escapeHtml((c.fraudCategory || 'general').replace(/_/g, ' '))} \u00b7 ${date}</p>
+        </button>`;
+    }).join('');
+
+    fraudCaseList.querySelectorAll('.fraud-case').forEach((el) => {
+      el.addEventListener('click', () => selectFraudCase(el.dataset.caseId));
+    });
+  }
+
+  function renderIocCards(iocs) {
+    if (!fraudDetailIocs) return;
+    const groups = [
+      { key: 'domains', label: 'Domain' },
+      { key: 'urls', label: 'URL' },
+      { key: 'emails', label: 'Email' },
+      { key: 'phones', label: 'Phone' },
+      { key: 'ips', label: 'IP' },
+      { key: 'hashes', label: 'Hash' },
+    ];
+
+    const cards = [];
+    for (const g of groups) {
+      for (const value of (iocs?.[g.key] || [])) {
+        cards.push(`
+          <div class="fraud-ioc">
+            <span class="fraud-ioc__type">${g.label}</span>
+            <code class="fraud-ioc__value" dir="ltr">${escapeHtml(value)}</code>
+            <button type="button" class="fraud-ioc__copy" data-copy="${escapeHtml(value)}">Copy</button>
+          </div>`);
+      }
+    }
+
+    fraudDetailIocs.innerHTML = cards.length
+      ? cards.join('')
+      : '<p class="fraud-ops__empty">No IOCs extracted.</p>';
+
+    fraudDetailIocs.querySelectorAll('.fraud-ioc__copy').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(btn.dataset.copy || '');
+          showToast('Copied');
+        } catch {
+          showToast('Copy failed');
+        }
+      });
+    });
+  }
+
+  async function selectFraudCase(id) {
+    selectedFraudCaseId = id;
+    fraudCopilotHistory = [];
+    if (fraudCopilotMessages) fraudCopilotMessages.innerHTML = '';
+    if (fraudModifyPanel) fraudModifyPanel.hidden = true;
+
+    if (fraudCaseList) {
+      fraudCaseList.querySelectorAll('.fraud-case').forEach((el) => {
+        el.classList.toggle('fraud-case--active', el.dataset.caseId === id);
+      });
+    }
+
+    try {
+      const response = await fetch(getApiUrl(`/api/cases/${encodeURIComponent(id)}`));
+      const result = await response.json();
+      if (!response.ok || !result.success) throw new Error(result.error || 'Case not found');
+
+      const c = result.case;
+      selectedFraudCase = c;
+      const inv = c.investigation || {};
+
+      if (fraudDetailEmpty) fraudDetailEmpty.hidden = true;
+      if (fraudDetailBody) fraudDetailBody.hidden = false;
+
+      if (fraudDetailId) fraudDetailId.textContent = c.id;
+      if (fraudDetailTitle) {
+        fraudDetailTitle.textContent = (inv.aiInvestigationSummary || c.aiExplanation || c.fraudCategory || c.id)
+          .toString()
+          .slice(0, 120);
+      }
+      if (fraudDetailTime) {
+        fraudDetailTime.textContent = c.submittedAt
+          ? new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(c.submittedAt))
+          : '\u2014';
+      }
+      if (fraudDetailStatus) {
+        fraudDetailStatus.textContent = c.status;
+        fraudDetailStatus.className = `fraud-badge fraud-badge--${statusBadgeClass(c.status)}`;
+      }
+      if (fraudDetailType) fraudDetailType.textContent = (c.fraudCategory || '\u2014').replace(/_/g, ' ');
+      if (fraudDetailScore) fraudDetailScore.textContent = `${c.fraudProbability || 0}/100`;
+      if (fraudDetailRisk) fraudDetailRisk.textContent = `${c.fraudProbability || 0}%`;
+      if (fraudDetailThreat) fraudDetailThreat.textContent = c.contentType || '\u2014';
+      if (fraudDetailSummary) fraudDetailSummary.textContent = inv.aiInvestigationSummary || c.aiExplanation || '\u2014';
+      if (fraudDetailEvidence) fraudDetailEvidence.textContent = c.content || '\u2014';
+
+      if (fraudDetailScreenshotWrap && fraudDetailScreenshot) {
+        if (c.screenshotDataUrl) {
+          fraudDetailScreenshot.src = c.screenshotDataUrl;
+          fraudDetailScreenshotWrap.hidden = false;
+        } else {
+          fraudDetailScreenshot.removeAttribute('src');
+          fraudDetailScreenshotWrap.hidden = true;
+        }
+      }
+
+      renderIocCards(c.iocs || {});
+
+      if (fraudRecAction) fraudRecAction.textContent = inv.recommendation?.action || '\u2014';
+      if (fraudRecRationale) fraudRecRationale.textContent = inv.recommendation?.rationale || '\u2014';
+      if (fraudRecConfidence) {
+        fraudRecConfidence.textContent = inv.recommendation?.confidence != null
+          ? `Confidence ${inv.recommendation.confidence}%`
+          : '';
+      }
+
+      if (fraudDocExecutive) fraudDocExecutive.textContent = inv.executiveInvestigationSummary || '\u2014';
+      if (fraudDocTechnical) fraudDocTechnical.textContent = inv.technicalInvestigationSummary || '\u2014';
+      if (fraudDocCustomer) fraudDocCustomer.textContent = inv.customerNotificationDraft || '\u2014';
+      if (fraudDocManagement) fraudDocManagement.textContent = inv.managementSummary || '\u2014';
+      if (fraudDocNotes) {
+        const notes = inv.investigationNotes || [];
+        fraudDocNotes.innerHTML = notes.length
+          ? notes.map((n) => `<li>${escapeHtml(n)}</li>`).join('')
+          : '<li>\u2014</li>';
+      }
+
+      const closed = c.status === 'Closed';
+      if (btnFraudApprove) btnFraudApprove.disabled = closed;
+      if (btnFraudModify) btnFraudModify.disabled = closed;
+      if (btnFraudReject) btnFraudReject.disabled = closed;
+
+      // Soft-refresh queue counts after Pending → Under Review
+      try {
+        const statsRes = await fetch(getApiUrl('/api/cases'));
+        const statsJson = await statsRes.json();
+        if (statsJson.success && statsJson.stats) {
+          const stats = statsJson.stats;
+          if (fraudKpiTotal) fraudKpiTotal.textContent = String(stats.total || 0);
+          if (fraudKpiPending) fraudKpiPending.textContent = String(stats.pending || 0);
+          if (fraudKpiReview) fraudKpiReview.textContent = String(stats.underReview || 0);
+          if (fraudKpiClosed) fraudKpiClosed.textContent = String(stats.closed || 0);
+        }
+        const cached = fraudCasesCache.find((x) => x.id === id);
+        if (cached) cached.status = c.status;
+        renderFraudCaseList();
+      } catch {
+        /* ignore */
+      }
+    } catch (err) {
+      console.error(err);
+      showToast(err.message || 'Failed to open case');
+    }
+  }
+
+  async function submitFraudDecision(outcome, action, analystNote) {
+    if (!selectedFraudCaseId) return;
+    try {
+      const response = await fetch(getApiUrl(`/api/cases/${encodeURIComponent(selectedFraudCaseId)}/decision`), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ outcome, action, analystNote }),
+      });
+      const result = await response.json();
+      if (!response.ok || !result.success) throw new Error(result.error || 'Decision failed');
+      showToast(`Decision saved: ${outcome}`);
+      if (fraudModifyPanel) fraudModifyPanel.hidden = true;
+      await selectFraudCase(selectedFraudCaseId);
+    } catch (err) {
+      console.error(err);
+      showToast(err.message || 'Could not save decision');
+    }
+  }
+
+  function appendCopilotMessage(role, text) {
+    if (!fraudCopilotMessages) return;
+    const div = document.createElement('div');
+    div.className = `fraud-copilot__msg fraud-copilot__msg--${role}`;
+    div.textContent = text;
+    fraudCopilotMessages.appendChild(div);
+    fraudCopilotMessages.scrollTop = fraudCopilotMessages.scrollHeight;
+  }
+
+  async function askFraudCopilot(question) {
+    if (!selectedFraudCaseId || !question) return;
+    appendCopilotMessage('user', question);
+    fraudCopilotHistory.push({ role: 'user', content: question });
+    appendCopilotMessage('assistant', 'Thinking\u2026');
+
+    try {
+      const response = await fetch(getApiUrl(`/api/cases/${encodeURIComponent(selectedFraudCaseId)}/copilot`), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: fraudCopilotHistory }),
+      });
+      const result = await response.json();
+      if (!response.ok || !result.success) throw new Error(result.error || 'Copilot failed');
+
+      fraudCopilotHistory.push({ role: 'assistant', content: result.reply });
+      if (fraudCopilotMessages?.lastChild) {
+        fraudCopilotMessages.lastChild.textContent = result.reply;
+      }
+    } catch (err) {
+      console.error(err);
+      if (fraudCopilotMessages?.lastChild) {
+        fraudCopilotMessages.lastChild.textContent = err.message || 'Copilot unavailable';
+      }
+    }
+  }
+
+  // Wire fraud ops events
+  if (btnFraudRefresh) {
+    btnFraudRefresh.addEventListener('click', () => {
+      renderFraudOpsDashboard();
+      showToast('Fraud queue refreshed');
+    });
+  }
+
+  if (btnFraudApprove) {
+    btnFraudApprove.addEventListener('click', () => {
+      const action = selectedFraudCase?.investigation?.recommendation?.action || 'Continue Monitoring';
+      submitFraudDecision('approve', action, '');
+    });
+  }
+
+  if (btnFraudReject) {
+    btnFraudReject.addEventListener('click', () => {
+      submitFraudDecision('reject', 'False Positive', 'Analyst rejected AI recommendation');
+    });
+  }
+
+  if (btnFraudModify) {
+    btnFraudModify.addEventListener('click', () => {
+      if (fraudModifyPanel) fraudModifyPanel.hidden = !fraudModifyPanel.hidden;
+      if (fraudModifyAction && selectedFraudCase?.investigation?.recommendation?.action) {
+        fraudModifyAction.value = selectedFraudCase.investigation.recommendation.action;
+      }
+    });
+  }
+
+  if (btnFraudModifySave) {
+    btnFraudModifySave.addEventListener('click', () => {
+      submitFraudDecision(
+        'modify',
+        fraudModifyAction?.value || 'Continue Monitoring',
+        fraudModifyNote?.value || '',
+      );
+    });
+  }
+
+  if (fraudCopilotForm) {
+    fraudCopilotForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const q = fraudCopilotInput?.value?.trim();
+      if (!q) return;
+      fraudCopilotInput.value = '';
+      askFraudCopilot(q);
+    });
+  }
+
+  document.querySelectorAll('.fraud-filter').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      fraudFilter = btn.dataset.fraudFilter;
+      document.querySelectorAll('.fraud-filter').forEach((b) => {
+        b.classList.toggle('fraud-filter--active', b.dataset.fraudFilter === fraudFilter);
+      });
+      renderFraudOpsDashboard();
+    });
+  });
+
+  if (fraudSearch) {
+    let searchTimer = null;
+    fraudSearch.addEventListener('input', () => {
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(() => {
+        fraudSearchQuery = fraudSearch.value.trim();
+        renderFraudOpsDashboard();
+      }, 250);
+    });
+  }
+
+  if (fraudCategoryFilter) {
+    fraudCategoryFilter.addEventListener('change', () => {
+      fraudCategory = fraudCategoryFilter.value;
+      renderFraudOpsDashboard();
+    });
+  }
+
+  renderFraudOpsDashboard();
+  updateScanInputForMode(activeMode);
 })();

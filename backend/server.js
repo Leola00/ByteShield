@@ -7,11 +7,13 @@ const multer = require("multer");
 const pdfParse = require("pdf-parse");
 const OpenAI = require("openai");
 const analytics = require("./analytics");
+const casesStore = require("./cases");
+const investigation = require("./investigation");
 
 const app = express();
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: "12mb" }));
 
 if (!process.env.OPENAI_API_KEY) {
   console.warn("⚠️ OPENAI_API_KEY not set — /analyze and /chat disabled; /predict-url still works");
@@ -104,7 +106,9 @@ Saudi resources you may cite:
 - Emergency: 911`;
 
 const PYTHON_BIN = process.env.PYTHON_BIN || "py";
-const PYTHON_ARGS = process.env.PYTHON_ARGS ? process.env.PYTHON_ARGS.split(" ") : ["-3"];
+const PYTHON_ARGS = (process.env.PYTHON_ARGS || "").trim()
+  ? process.env.PYTHON_ARGS.trim().split(/\s+/).filter(Boolean)
+  : [];
 const ML_PREDICT_SCRIPT = path.join(__dirname, "ml", "predict_url.py");
 const FINANCIAL_FORECAST_SCRIPT = path.join(__dirname, "ml", "predict_financial_risk.py");
 const SOC_REPORT_SCRIPT = path.join(__dirname, "app.py");
@@ -752,6 +756,191 @@ app.post("/chat", async (req, res) => {
       success: false,
       error: error.message,
     });
+  }
+});
+
+/* ── Fraud Operations case APIs ── */
+
+app.post("/api/cases", async (req, res) => {
+  try {
+    const body = req.body || {};
+    const content = String(body.content || "").trim();
+    if (!content) {
+      return res.status(400).json({ success: false, error: "content is required" });
+    }
+
+    const score = Number(body.fraudProbability ?? body.score) || 0;
+    if (score < 31) {
+      return res.status(400).json({
+        success: false,
+        error: "Only suspicious or high-risk analyses can be submitted as fraud reports",
+      });
+    }
+
+    const { case: created } = casesStore.createCase({
+      content,
+      contentType: body.contentType || "Message",
+      screenshotDataUrl: body.screenshotDataUrl || null,
+      urls: body.urls,
+      emails: body.emails,
+      phones: body.phones,
+      domains: body.domains,
+      ips: body.ips,
+      hashes: body.hashes,
+      fraudProbability: score,
+      aiExplanation: body.aiExplanation || body.shortExplanation || "",
+      reasoning: body.reasoning || [],
+      fraudCategory: body.fraudCategory || body.threatType || "general",
+      threatType: body.threatType || body.fraudCategory || "general",
+    });
+
+    const package_ = await investigation.generateInvestigation(openai, callOpenAiJson, created);
+    const saved = casesStore.updateCase(created.id, (c) => ({
+      ...c,
+      investigation: package_,
+    }));
+
+    res.status(201).json({ success: true, case: saved });
+  } catch (error) {
+    console.error("Create Case Error:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get("/api/cases", (req, res) => {
+  try {
+    const { status, category, q } = req.query;
+    const list = casesStore.listCases({ status, category, q });
+    res.json({
+      success: true,
+      stats: casesStore.getStats(),
+      cases: list.map((c) => ({
+        id: c.id,
+        status: c.status,
+        submittedAt: c.submittedAt,
+        fraudProbability: c.fraudProbability,
+        fraudCategory: c.fraudCategory,
+        contentType: c.contentType,
+        preview: c.preview,
+        campaignId: c.campaignId,
+        recommendation: c.investigation?.recommendation?.action || null,
+      })),
+    });
+  } catch (error) {
+    console.error("List Cases Error:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get("/api/cases/:id", (req, res) => {
+  try {
+    const found = casesStore.getCaseById(req.params.id);
+    if (!found) {
+      return res.status(404).json({ success: false, error: "Case not found" });
+    }
+    if (found.status === "Pending Review") {
+      casesStore.markUnderReview(found.id);
+      found.status = "Under Review";
+    }
+    res.json({ success: true, case: found });
+  } catch (error) {
+    console.error("Get Case Error:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post("/api/cases/:id/investigate", async (req, res) => {
+  try {
+    const found = casesStore.getCaseById(req.params.id);
+    if (!found) {
+      return res.status(404).json({ success: false, error: "Case not found" });
+    }
+    const package_ = await investigation.generateInvestigation(openai, callOpenAiJson, found);
+    const saved = casesStore.updateCase(found.id, (c) => ({
+      ...c,
+      investigation: package_,
+      status: c.status === "Closed" ? "Closed" : "Under Review",
+    }));
+    res.json({ success: true, case: saved });
+  } catch (error) {
+    console.error("Investigate Case Error:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post("/api/cases/:id/decision", (req, res) => {
+  try {
+    const { outcome, action, analystNote } = req.body || {};
+    if (!["approve", "modify", "reject"].includes(String(outcome || "").toLowerCase())) {
+      return res.status(400).json({
+        success: false,
+        error: "outcome must be approve, modify, or reject",
+      });
+    }
+    const saved = casesStore.setDecision(req.params.id, {
+      outcome: String(outcome).toLowerCase(),
+      action,
+      analystNote,
+    });
+    if (!saved) {
+      return res.status(404).json({ success: false, error: "Case not found" });
+    }
+    res.json({ success: true, case: saved });
+  } catch (error) {
+    console.error("Decision Error:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get("/api/campaigns", (_req, res) => {
+  try {
+    res.json({ success: true, campaigns: casesStore.listCampaigns() });
+  } catch (error) {
+    console.error("Campaigns Error:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post("/api/cases/:id/copilot", async (req, res) => {
+  try {
+    if (!openai) {
+      return res.status(503).json({
+        success: false,
+        error: "OpenAI is not configured. Set OPENAI_API_KEY in backend/.env",
+      });
+    }
+
+    const found = casesStore.getCaseById(req.params.id);
+    if (!found) {
+      return res.status(404).json({ success: false, error: "Case not found" });
+    }
+
+    const { messages } = req.body || {};
+    if (!Array.isArray(messages) || messages.length === 0) {
+      return res.status(400).json({ success: false, error: "No messages provided" });
+    }
+
+    const systemContent = `${investigation.COPILOT_PROMPT}\n\n--- Current case ---\n${investigation.buildCaseContext(found)}`;
+
+    const completion = await openai.chat.completions.create({
+      model: process.env.OPENAI_MODEL || "gpt-4o-mini",
+      temperature: 0.25,
+      messages: [
+        { role: "system", content: systemContent },
+        ...messages.slice(-12).map((m) => ({
+          role: m.role === "user" ? "user" : "assistant",
+          content: String(m.content || ""),
+        })),
+      ],
+    });
+
+    const reply = completion.choices[0]?.message?.content;
+    if (!reply) throw new Error("No response from OpenAI");
+
+    res.json({ success: true, reply });
+  } catch (error) {
+    console.error("Copilot Error:", error);
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 

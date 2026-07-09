@@ -24,7 +24,7 @@ Rules:
 - Extract all observable IoCs from the evidence (URLs, domains, emails, phones, IPs, filenames).
 - Containment playbook steps must be actionable for a Tier-1/Tier-2 SOC analyst.
 - Severity mapping: Critical (active fraud/credential harvest), High (confirmed phishing), Medium (suspicious), Low/Informational (benign).
-- Write technical fields in English. Include a brief Arabic executive summary in incident.executiveSummaryAr.
+- Write ALL fields in English only. Do not use Arabic anywhere in the report.
 - Be precise — do not invent IoCs not present in the evidence.
 
 Return ONLY valid JSON matching this schema:
@@ -35,8 +35,8 @@ Return ONLY valid JSON matching this schema:
   "frameworks": ["NIST SP 800-61", "MITRE ATT&CK", "SANS PICERL"],
   "incident": {
     "title": "Concise incident title",
-    "executiveSummary": "2-3 sentence analyst summary",
-    "executiveSummaryAr": "Arabic executive summary",
+    "executiveSummary": "2-3 sentence analyst summary in English",
+    "executiveSummaryAr": "",
     "severity": "Critical | High | Medium | Low | Informational",
     "status": "Open | Triaging | Contained | Closed",
     "classification": "Phishing | Spearphishing | BEC | Banking Fraud | Smishing | Vishing | Malware | Credential Harvesting | Social Engineering | Benign",
