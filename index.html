@@ -105,6 +105,77 @@
 
   <!-- ByteShield feature panel -->
   <div class="byteshield-panel" id="byteshield-panel" hidden>
+    <!-- FRAUD OPS LOGIN GATE -->
+    <div class="fraud-login" id="fraud-login" hidden>
+      <section class="fraud-login__brand" aria-label="ByteShield branding">
+        <div class="fraud-login__brand-inner">
+          <div class="fraud-login__logo" aria-hidden="true">
+            <svg viewBox="0 0 64 64" width="64" height="64" fill="none">
+              <path d="M32 6L52 14V30c0 14.5-8.8 27.2-20 31.5C20.8 57.2 12 44.5 12 30V14L32 6Z" fill="#7c3aed"/>
+              <path d="M32 18c-5.5 0-10 4.5-10 10v4.5c0 1.4.5 2.7 1.5 3.7l1.2 1.2V42a1.5 1.5 0 0 0 1.5 1.5h11.6a1.5 1.5 0 0 0 1.5-1.5v-4.6l1.2-1.2c1-.1 1.5-2.3 1.5-3.7V28c0-5.5-4.5-10-10-10Zm0 4.5a5.5 5.5 0 0 1 5.5 5.5v3.2a5.5 5.5 0 0 1-11 0V28a5.5 5.5 0 0 1 5.5-5.5Z" fill="#fff"/>
+            </svg>
+          </div>
+          <h1>ByteShield</h1>
+          <p class="fraud-login__product">Fraud Operation</p>
+          <div class="fraud-login__rule" aria-hidden="true"></div>
+          <p class="fraud-login__tagline">Detect. Investigate. Prevent.</p>
+          <p class="fraud-login__desc">Advanced fraud detection and case management to protect customers and your business.</p>
+        </div>
+        <div class="fraud-login__decor fraud-login__decor--tl" aria-hidden="true"></div>
+        <div class="fraud-login__decor fraud-login__decor--br" aria-hidden="true"></div>
+      </section>
+
+      <section class="fraud-login__form-wrap">
+        <form class="fraud-login__card" id="fraud-login-form" autocomplete="on">
+          <div class="fraud-login__card-icon" aria-hidden="true">
+            <svg viewBox="0 0 40 40" width="40" height="40" fill="none">
+              <path d="M20 4L32 9V19c0 9-5.5 16.8-12 19.5C13.5 35.8 8 28 8 19V9L20 4Z" fill="#7c3aed"/>
+              <circle cx="20" cy="17" r="4" fill="#fff"/>
+              <path d="M13 28c1.8-3.2 4.2-4.8 7-4.8s5.2 1.6 7 4.8" stroke="#fff" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <h2>Welcome back</h2>
+          <p class="fraud-login__card-sub">Please sign in to continue to ByteShield Fraud Operation.</p>
+
+          <label class="fraud-login__label" for="fraud-login-user">Username or Email</label>
+          <div class="fraud-login__field">
+            <span class="fraud-login__field-icon" aria-hidden="true">👤</span>
+            <input type="text" id="fraud-login-user" name="username" placeholder="Enter your username or email" required autocomplete="username" />
+          </div>
+
+          <label class="fraud-login__label" for="fraud-login-pass">Password</label>
+          <div class="fraud-login__field">
+            <span class="fraud-login__field-icon" aria-hidden="true">🔒</span>
+            <input type="password" id="fraud-login-pass" name="password" placeholder="Enter your password" required autocomplete="current-password" />
+            <button type="button" class="fraud-login__eye" id="fraud-login-toggle-pass" aria-label="Show password">👁</button>
+          </div>
+
+          <div class="fraud-login__row">
+            <label class="fraud-login__remember">
+              <input type="checkbox" id="fraud-login-remember" />
+              Remember me
+            </label>
+            <button type="button" class="fraud-login__forgot" id="fraud-login-forgot">Forgot password?</button>
+          </div>
+
+          <p class="fraud-login__error" id="fraud-login-error" hidden>Please enter your username and password.</p>
+
+          <button type="submit" class="fraud-login__submit" id="fraud-login-submit">Sign In</button>
+
+          <div class="fraud-login__or"><span>or</span></div>
+
+          <button type="button" class="fraud-login__sso" id="fraud-login-sso">
+            <span aria-hidden="true">🛡</span> Sign in with SSO
+          </button>
+        </form>
+
+        <p class="fraud-login__secure">
+          <span aria-hidden="true">✓</span>
+          ByteShield Fraud Operation is secure and monitored 24/7
+        </p>
+      </section>
+    </div>
+
     <header class="bs-header">
       <button type="button" class="bs-header__login" id="close-byteshield" aria-label="عودة للخدمات">
         عودة للخدمات
@@ -281,188 +352,666 @@
 
       <!-- FRAUD OPERATIONS PORTAL -->
       <div class="fraud-ops" id="fraud-ops" hidden>
-        <aside class="fraud-ops__sidebar" aria-label="Case queue">
-          <div class="fraud-ops__sidebar-head">
-            <h2>Case Queue</h2>
-            <span class="fraud-ops__count" id="fraud-queue-count">0</span>
+        <aside class="fraud-ops__nav" aria-label="Fraud Ops navigation">
+          <div class="fraud-ops__brand">
+            <span class="fraud-ops__brand-pill">Fraud Ops</span>
           </div>
 
-          <div class="fraud-ops__search">
-            <input type="search" id="fraud-search" class="fraud-ops__search-input" placeholder="Search cases…" autocomplete="off" />
+          <nav class="fraud-ops__nav-groups">
+            <div class="fraud-ops__nav-group">
+              <p class="fraud-ops__nav-label">Overview</p>
+              <button type="button" class="fraud-nav-item fraud-nav-item--active" data-fraud-nav="dashboard">
+                <span class="fraud-nav-item__icon" aria-hidden="true">▣</span> Dashboard
+              </button>
+              <button type="button" class="fraud-nav-item" data-fraud-nav="queue">
+                <span class="fraud-nav-item__icon" aria-hidden="true">☰</span> Case Queue
+                <span class="fraud-ops__count" id="fraud-queue-count">0</span>
+              </button>
+              <button type="button" class="fraud-nav-item" data-fraud-nav="campaigns">
+                <span class="fraud-nav-item__icon" aria-hidden="true">◎</span> Active Campaigns
+              </button>
+              <button type="button" class="fraud-nav-item" data-fraud-nav="all">
+                <span class="fraud-nav-item__icon" aria-hidden="true">▦</span> All Cases
+              </button>
+            </div>
+            <div class="fraud-ops__nav-group">
+              <p class="fraud-ops__nav-label">Investigation</p>
+              <button type="button" class="fraud-nav-item" data-fraud-nav="queue" data-fraud-filter-nav="Under Review">
+                <span class="fraud-nav-item__icon" aria-hidden="true">◉</span> My Reviews
+              </button>
+              <button type="button" class="fraud-nav-item" data-fraud-nav="queue" data-fraud-filter-nav="Pending Review">
+                <span class="fraud-nav-item__icon" aria-hidden="true">▲</span> Escalated Cases
+              </button>
+              <button type="button" class="fraud-nav-item" data-fraud-nav="analytics">
+                <span class="fraud-nav-item__icon" aria-hidden="true">◈</span> Indicators (IOCs)
+              </button>
+              <button type="button" class="fraud-nav-item" data-fraud-nav="actions">
+                <span class="fraud-nav-item__icon" aria-hidden="true">◇</span> Playbooks
+              </button>
+            </div>
+            <div class="fraud-ops__nav-group">
+              <p class="fraud-ops__nav-label">Communication</p>
+              <button type="button" class="fraud-nav-item" data-fraud-nav="actions">
+                <span class="fraud-nav-item__icon" aria-hidden="true">✉</span> Customer Notifications
+              </button>
+              <button type="button" class="fraud-nav-item" data-fraud-nav="actions">
+                <span class="fraud-nav-item__icon" aria-hidden="true">✎</span> Internal Notes
+              </button>
+            </div>
+          </nav>
+
+          <div class="fraud-ops__copilot-card">
+            <strong>AI Copilot</strong>
+            <p>Ask questions about cases and get AI assistance.</p>
+            <button type="button" class="fraud-ops__copilot-btn" id="btn-fraud-open-copilot">Open Copilot</button>
           </div>
 
-          <div class="fraud-ops__filters">
-            <button type="button" class="fraud-filter fraud-filter--active" data-fraud-filter="all">All</button>
-            <button type="button" class="fraud-filter" data-fraud-filter="Pending Review">Pending</button>
-            <button type="button" class="fraud-filter" data-fraud-filter="Under Review">In Review</button>
-            <button type="button" class="fraud-filter" data-fraud-filter="Closed">Closed</button>
-          </div>
-
-          <div class="fraud-ops__category">
-            <label for="fraud-category-filter">Category</label>
-            <select id="fraud-category-filter">
-              <option value="all">All categories</option>
-              <option value="phishing">Phishing</option>
-              <option value="banking_fraud">Banking fraud</option>
-              <option value="investment_scam">Investment scam</option>
-              <option value="delivery_scam">Delivery scam</option>
-              <option value="social_engineering">Social engineering</option>
-              <option value="general">General</option>
-            </select>
-          </div>
-
-          <div class="fraud-ops__list" id="fraud-case-list">
-            <p class="fraud-ops__empty" id="fraud-list-empty">No reported cases yet.<br>Customer fraud reports appear here.</p>
+          <div class="fraud-ops__nav-foot">
+            <button type="button" class="fraud-nav-item" id="btn-fraud-refresh">
+              <span class="fraud-nav-item__icon" aria-hidden="true">↻</span> Refresh / Settings
+            </button>
+            <button type="button" class="fraud-nav-item" id="btn-fraud-logout">
+              <span class="fraud-nav-item__icon" aria-hidden="true">⏻</span> Log out
+            </button>
           </div>
         </aside>
 
-        <section class="fraud-ops__main">
-          <header class="fraud-ops__dash-head">
-            <div>
-              <p class="fraud-ops__eyebrow">Fraud Operations</p>
-              <h2>Investigation Portal</h2>
+        <div class="fraud-ops__workspace">
+          <header class="fraud-ops__topbar">
+            <div class="fraud-ops__topbar-brand">
+              <span class="fraud-ops__shield" aria-hidden="true">🛡</span>
+              <div>
+                <strong>alinma الإنماء</strong>
+                <span>ByteShield Fraud Operations</span>
+              </div>
             </div>
-            <button type="button" class="btn btn--ghost" id="btn-fraud-refresh">Refresh</button>
+            <div class="fraud-ops__topbar-actions">
+              <button type="button" class="fraud-ops__bell" aria-label="Notifications">
+                <span aria-hidden="true">🔔</span>
+                <span class="fraud-ops__bell-badge" id="fraud-alert-badge">0</span>
+              </button>
+              <div class="fraud-ops__analyst">
+                <span class="fraud-ops__avatar" aria-hidden="true">A</span>
+                <div>
+                  <strong>Analyst</strong>
+                  <span>Fraud Team</span>
+                </div>
+              </div>
+            </div>
           </header>
 
-          <div class="fraud-ops__kpis">
-            <article class="fraud-kpi fraud-kpi--pending">
-              <span>Pending Review</span>
-              <strong id="fraud-kpi-pending">0</strong>
-            </article>
-            <article class="fraud-kpi fraud-kpi--open">
-              <span>Under Review</span>
-              <strong id="fraud-kpi-review">0</strong>
-            </article>
-            <article class="fraud-kpi fraud-kpi--closed">
-              <span>Closed</span>
-              <strong id="fraud-kpi-closed">0</strong>
-            </article>
-            <article class="fraud-kpi">
-              <span>Total cases</span>
-              <strong id="fraud-kpi-total">0</strong>
-            </article>
-          </div>
-
-          <div class="fraud-campaigns card-panel" id="fraud-campaigns">
-            <div class="fraud-campaigns__head">
-              <h3>Active Fraud Campaigns</h3>
-              <p>Similar customer reports grouped automatically</p>
-            </div>
-            <ul class="fraud-campaigns__list" id="fraud-campaigns-list">
-              <li class="fraud-campaigns__empty">No active campaigns yet.</li>
-            </ul>
-          </div>
-
-          <div class="fraud-ops__detail card-panel" id="fraud-case-detail">
-            <div class="fraud-ops__detail-empty" id="fraud-detail-empty">
-              <h3>Select a case</h3>
-              <p>Choose a reported case from the queue. AI investigation is already prepared — review and decide.</p>
+          <!-- DASHBOARD VIEW -->
+          <div class="fraud-ops__dashboard" id="fraud-view-dashboard">
+            <div class="fraud-ops__kpis fraud-ops__kpis--dash">
+              <article class="fraud-kpi fraud-kpi--pending">
+                <span>Pending Review</span>
+                <strong class="fraud-kpi-pending-val">0</strong>
+                <em class="fraud-kpi__delta fraud-kpi__delta--down fraud-kpi-pending-delta">—</em>
+              </article>
+              <article class="fraud-kpi fraud-kpi--open">
+                <span>Under Review</span>
+                <strong class="fraud-kpi-review-val">0</strong>
+                <em class="fraud-kpi__delta fraud-kpi-review-delta">No change</em>
+              </article>
+              <article class="fraud-kpi fraud-kpi--closed">
+                <span>Closed Today</span>
+                <strong class="fraud-kpi-closed-val">0</strong>
+                <em class="fraud-kpi__delta fraud-kpi__delta--up fraud-kpi-closed-delta">—</em>
+              </article>
+              <article class="fraud-kpi fraud-kpi--high">
+                <span>High Risk Cases</span>
+                <strong class="fraud-kpi-high-val">0</strong>
+                <em class="fraud-kpi__delta fraud-kpi__delta--down fraud-kpi-high-delta">—</em>
+              </article>
+              <article class="fraud-kpi fraud-kpi--ai">
+                <span>AI Efficiency</span>
+                <strong class="fraud-kpi-ai-val">—</strong>
+                <em class="fraud-kpi__delta fraud-kpi-ai-delta">avg. time saved</em>
+                <span class="fraud-kpi__spark" aria-hidden="true"></span>
+              </article>
             </div>
 
-            <div class="fraud-ops__detail-body" id="fraud-detail-body" hidden>
-              <div class="fraud-detail__top">
-                <div>
-                  <p class="fraud-detail__id" id="fraud-detail-id">FO-0000</p>
-                  <h3 id="fraud-detail-title">Case title</h3>
-                </div>
-                <div class="fraud-detail__badges">
-                  <span class="fraud-badge" id="fraud-detail-status">Pending Review</span>
-                  <span class="fraud-badge fraud-badge--risk" id="fraud-detail-risk">—</span>
-                </div>
+            <section class="fraud-campaigns" id="fraud-campaigns">
+              <div class="fraud-campaigns__head">
+                <h3>Active Fraud Campaigns</h3>
+                <p>Similar customer reports grouped automatically</p>
               </div>
+              <ul class="fraud-campaigns__list" id="fraud-campaigns-list">
+                <li class="fraud-campaigns__empty">No active campaigns yet.</li>
+              </ul>
+            </section>
 
-              <div class="fraud-detail__meta">
-                <div><span>Submitted</span><strong id="fraud-detail-time">—</strong></div>
-                <div><span>Category</span><strong id="fraud-detail-type">—</strong></div>
-                <div><span>Probability</span><strong id="fraud-detail-score">—</strong></div>
-                <div><span>Channel</span><strong id="fraud-detail-threat">—</strong></div>
-              </div>
-
-              <div class="fraud-detail__section">
-                <h4>AI Investigation Summary</h4>
-                <p id="fraud-detail-summary">—</p>
-              </div>
-
-              <div class="fraud-detail__section">
-                <h4>Customer Report</h4>
-                <pre id="fraud-detail-evidence" class="fraud-detail__evidence"></pre>
-                <div id="fraud-detail-screenshot-wrap" class="fraud-detail__shot" hidden>
-                  <img id="fraud-detail-screenshot" alt="Customer screenshot" />
+            <div class="fraud-ops__bottom" id="fraud-actions-section">
+              <section class="fraud-widget">
+                <h3>Recent Alerts</h3>
+                <ul class="fraud-alerts" id="fraud-alerts-list">
+                  <li class="fraud-alerts__empty">No alerts yet.</li>
+                </ul>
+              </section>
+              <section class="fraud-widget fraud-widget--insights">
+                <h3>AI Insights</h3>
+                <p id="fraud-ai-insights">AI will surface patterns once cases are reported.</p>
+              </section>
+              <section class="fraud-widget">
+                <h3>Quick Actions</h3>
+                <div class="fraud-quick-actions">
+                  <button type="button" class="fraud-quick-btn" data-fraud-nav="queue">Bulk Update Cases</button>
+                  <button type="button" class="fraud-quick-btn" id="btn-fraud-export">Export Report</button>
+                  <button type="button" class="fraud-quick-btn" data-fraud-nav="actions">Create Playbook</button>
+                  <button type="button" class="fraud-quick-btn" data-fraud-nav="analytics">Search IOCs</button>
                 </div>
-              </div>
+              </section>
+            </div>
+          </div>
 
-              <div class="fraud-detail__section">
-                <h4>Extracted Indicators of Compromise</h4>
-                <div class="fraud-ioc-grid" id="fraud-detail-iocs"></div>
+          <!-- CASE QUEUE PAGE -->
+          <div class="fraud-ops__queue-page" id="fraud-view-queue" hidden>
+            <div class="fraud-page-head">
+              <div>
+                <h1 class="fraud-page-head__title">
+                  Case Queue
+                  <span class="fraud-page-head__badge" id="fraud-queue-page-badge">0</span>
+                </h1>
+                <p class="fraud-page-head__sub">Review and take action on customer-submitted fraud cases.</p>
               </div>
+              <button type="button" class="fraud-page-head__back" id="btn-fraud-back-services">عودة للخدمات</button>
+            </div>
 
-              <div class="fraud-detail__section fraud-rec" id="fraud-recommendation">
-                <h4>AI Recommendation</h4>
-                <div class="fraud-rec__card">
-                  <strong id="fraud-rec-action">—</strong>
-                  <p id="fraud-rec-rationale">—</p>
-                  <span class="fraud-rec__conf" id="fraud-rec-confidence"></span>
-                </div>
-                <div class="fraud-detail__actions">
-                  <button type="button" class="btn btn--primary" id="btn-fraud-approve">Approve</button>
-                  <button type="button" class="btn btn--ghost" id="btn-fraud-modify">Modify</button>
-                  <button type="button" class="btn btn--ghost" id="btn-fraud-reject">Reject</button>
-                </div>
-                <div class="fraud-modify" id="fraud-modify-panel" hidden>
-                  <label for="fraud-modify-action">Modified action</label>
-                  <select id="fraud-modify-action">
-                    <option>Block Sender</option>
-                    <option>Block Domain</option>
-                    <option>Escalate to Fraud Team</option>
-                    <option>Notify Customer</option>
-                    <option>Continue Monitoring</option>
-                    <option>False Positive</option>
+            <div class="fraud-ops__kpis">
+              <article class="fraud-kpi fraud-kpi--pending">
+                <span>Pending Review</span>
+                <strong id="fraud-kpi-pending" class="fraud-kpi-pending-val">0</strong>
+                <em class="fraud-kpi__delta fraud-kpi__delta--down" id="fraud-kpi-pending-delta">—</em>
+              </article>
+              <article class="fraud-kpi fraud-kpi--open">
+                <span>Under Review</span>
+                <strong id="fraud-kpi-review" class="fraud-kpi-review-val">0</strong>
+                <em class="fraud-kpi__delta" id="fraud-kpi-review-delta">No change</em>
+              </article>
+              <article class="fraud-kpi fraud-kpi--closed">
+                <span>Closed Today</span>
+                <strong id="fraud-kpi-closed" class="fraud-kpi-closed-val">0</strong>
+                <em class="fraud-kpi__delta fraud-kpi__delta--up" id="fraud-kpi-closed-delta">—</em>
+              </article>
+              <article class="fraud-kpi fraud-kpi--high">
+                <span>High Risk Cases</span>
+                <strong id="fraud-kpi-high" class="fraud-kpi-high-val">0</strong>
+                <em class="fraud-kpi__delta fraud-kpi__delta--down" id="fraud-kpi-high-delta">—</em>
+              </article>
+              <article class="fraud-kpi fraud-kpi--ai">
+                <span>AI Efficiency</span>
+                <strong id="fraud-kpi-ai" class="fraud-kpi-ai-val">—</strong>
+                <em class="fraud-kpi__delta" id="fraud-kpi-ai-delta">avg. time saved</em>
+                <span class="fraud-kpi__spark" id="fraud-kpi-spark" aria-hidden="true"></span>
+                <span id="fraud-kpi-total" hidden>0</span>
+              </article>
+            </div>
+
+            <div class="fraud-ops__mid fraud-ops__mid--queue">
+              <section class="fraud-queue fraud-queue--page" id="fraud-queue-section">
+                <div class="fraud-queue__controls fraud-queue__controls--bar">
+                  <input type="search" id="fraud-search" class="fraud-ops__search-input" placeholder="Search cases by ID, URL, or email…" autocomplete="off" />
+                  <select id="fraud-status-filter" class="fraud-ops__select" aria-label="Status">
+                    <option value="all">All Status</option>
+                    <option value="Pending Review">Pending Review</option>
+                    <option value="Under Review">Under Review</option>
+                    <option value="Closed">Closed</option>
                   </select>
-                  <label for="fraud-modify-note">Analyst note</label>
-                  <textarea id="fraud-modify-note" rows="2" placeholder="Optional note…"></textarea>
-                  <button type="button" class="btn btn--primary" id="btn-fraud-modify-save">Save decision</button>
+                  <div class="fraud-ops__category">
+                    <label for="fraud-category-filter" class="visually-hidden">Category</label>
+                    <select id="fraud-category-filter" class="fraud-ops__select">
+                      <option value="all">All Categories</option>
+                      <option value="phishing">Phishing</option>
+                      <option value="banking_fraud">Banking fraud</option>
+                      <option value="investment_scam">Investment scam</option>
+                      <option value="delivery_scam">Delivery scam</option>
+                      <option value="social_engineering">Social engineering</option>
+                      <option value="general">General</option>
+                    </select>
+                  </div>
+                  <button type="button" class="fraud-filter-btn" id="btn-fraud-filters" aria-label="Filters">Filters</button>
+                  <div class="fraud-ops__filters" hidden>
+                    <button type="button" class="fraud-filter fraud-filter--active" data-fraud-filter="all">All</button>
+                    <button type="button" class="fraud-filter" data-fraud-filter="Pending Review">Pending</button>
+                    <button type="button" class="fraud-filter" data-fraud-filter="Under Review">In Review</button>
+                    <button type="button" class="fraud-filter" data-fraud-filter="Closed">Closed</button>
+                  </div>
                 </div>
-              </div>
-
-              <div class="fraud-detail__section">
-                <h4>Generated Investigation Content</h4>
-                <div class="fraud-docs" id="fraud-docs">
-                  <details open>
-                    <summary>Executive Investigation Summary</summary>
-                    <p id="fraud-doc-executive">—</p>
-                  </details>
-                  <details>
-                    <summary>Technical Investigation Summary</summary>
-                    <p id="fraud-doc-technical">—</p>
-                  </details>
-                  <details>
-                    <summary>Customer Notification Draft</summary>
-                    <pre id="fraud-doc-customer" class="fraud-detail__evidence"></pre>
-                  </details>
-                  <details>
-                    <summary>Management Summary</summary>
-                    <p id="fraud-doc-management">—</p>
-                  </details>
-                  <details>
-                    <summary>Investigation Notes</summary>
-                    <ul id="fraud-doc-notes" class="fraud-detail__list"></ul>
-                  </details>
+                <div class="fraud-queue__table-wrap">
+                  <table class="fraud-queue__table fraud-queue__table--rich">
+                    <thead>
+                      <tr>
+                        <th scope="col" class="fraud-queue__check-col"><input type="checkbox" id="fraud-select-all" aria-label="Select all" /></th>
+                        <th scope="col"><span class="visually-hidden">Type</span></th>
+                        <th scope="col">Case ID</th>
+                        <th scope="col">Submitted</th>
+                        <th scope="col">Category</th>
+                        <th scope="col">Risk Score</th>
+                        <th scope="col">Source</th>
+                        <th scope="col">Status</th>
+                        <th scope="col"><span class="visually-hidden">Open</span></th>
+                      </tr>
+                    </thead>
+                    <tbody id="fraud-case-list">
+                      <tr class="fraud-queue__empty-row" id="fraud-list-empty">
+                        <td colspan="9">No reported cases yet. Customer fraud reports appear here.</td>
+                      </tr>
+                    </tbody>
+                  </table>
                 </div>
-              </div>
+                <div class="fraud-queue__footer">
+                  <p class="fraud-queue__pager" id="fraud-queue-pager">Showing 0 cases</p>
+                  <div class="fraud-queue__pages" id="fraud-queue-pages" hidden></div>
+                </div>
+              </section>
 
-              <div class="fraud-detail__section fraud-copilot">
-                <h4>AI Copilot</h4>
-                <p class="fraud-copilot__hint">Ask investigation questions about this case. Context is already loaded.</p>
-                <div class="fraud-copilot__messages" id="fraud-copilot-messages"></div>
-                <form class="fraud-copilot__form" id="fraud-copilot-form">
-                  <input type="text" id="fraud-copilot-input" placeholder="e.g. Should we block this domain for all customers?" autocomplete="off" />
-                  <button type="submit" class="btn btn--primary">Ask</button>
-                </form>
-              </div>
+              <aside class="fraud-analytics fraud-analytics--queue" id="fraud-analytics-section" aria-label="Risk and threat analytics">
+                <div class="fraud-analytics__card">
+                  <h3>Risk Distribution</h3>
+                  <div class="fraud-donut-wrap">
+                    <div class="fraud-donut" id="fraud-risk-donut" style="--high:0;--medium:0;--low:100;">
+                      <div class="fraud-donut__hole">
+                        <strong id="fraud-donut-total">0</strong>
+                        <span>cases</span>
+                      </div>
+                    </div>
+                    <ul class="fraud-donut__legend" id="fraud-risk-legend">
+                      <li><i class="fraud-dot fraud-dot--high"></i> High (80–100) <span id="fraud-risk-high-pct">0%</span></li>
+                      <li><i class="fraud-dot fraud-dot--medium"></i> Medium (50–79) <span id="fraud-risk-medium-pct">0%</span></li>
+                      <li><i class="fraud-dot fraud-dot--low"></i> Low (0–49) <span id="fraud-risk-low-pct">0%</span></li>
+                    </ul>
+                  </div>
+                </div>
+                <div class="fraud-analytics__card">
+                  <h3>Top Threat Types</h3>
+                  <ul class="fraud-bars" id="fraud-threat-bars">
+                    <li class="fraud-bars__empty">No threat data yet.</li>
+                  </ul>
+                </div>
+                <div class="fraud-analytics__card">
+                  <h3>Quick Filters</h3>
+                  <div class="fraud-quick-filters">
+                    <button type="button" class="fraud-quick-filter" data-fraud-quick="high">High Risk Cases</button>
+                    <button type="button" class="fraud-quick-filter" data-fraud-quick="review">My Reviews</button>
+                    <button type="button" class="fraud-quick-filter" data-fraud-quick="pending">Escalated Cases</button>
+                    <button type="button" class="fraud-quick-filter" data-fraud-quick="all">Unassigned</button>
+                  </div>
+                </div>
+              </aside>
             </div>
           </div>
-        </section>
+
+          <!-- ALL CASES PAGE -->
+          <div class="fraud-ops__all-page" id="fraud-view-all" hidden>
+            <div class="fraud-page-head">
+              <div>
+                <h1 class="fraud-page-head__title">All Cases</h1>
+                <p class="fraud-page-head__sub">View and manage all fraud cases across all statuses.</p>
+              </div>
+              <button type="button" class="fraud-page-head__refresh" id="btn-fraud-all-refresh">Refresh</button>
+            </div>
+
+            <div class="fraud-ops__kpis fraud-ops__kpis--all">
+              <article class="fraud-kpi fraud-kpi--all-total">
+                <span class="fraud-kpi__icon" aria-hidden="true">📄</span>
+                <span>Total Cases</span>
+                <strong id="all-kpi-total">0</strong>
+                <em class="fraud-kpi__delta" id="all-kpi-total-pct">100%</em>
+              </article>
+              <article class="fraud-kpi fraud-kpi--pending">
+                <span class="fraud-kpi__icon" aria-hidden="true">⏱</span>
+                <span>Pending Review</span>
+                <strong id="all-kpi-pending">0</strong>
+                <em class="fraud-kpi__delta" id="all-kpi-pending-pct">0%</em>
+              </article>
+              <article class="fraud-kpi fraud-kpi--open">
+                <span class="fraud-kpi__icon" aria-hidden="true">👤</span>
+                <span>In Review</span>
+                <strong id="all-kpi-review">0</strong>
+                <em class="fraud-kpi__delta" id="all-kpi-review-pct">0%</em>
+              </article>
+              <article class="fraud-kpi fraud-kpi--closed">
+                <span class="fraud-kpi__icon" aria-hidden="true">✓</span>
+                <span>Resolved</span>
+                <strong id="all-kpi-resolved">0</strong>
+                <em class="fraud-kpi__delta" id="all-kpi-resolved-pct">0%</em>
+              </article>
+              <article class="fraud-kpi">
+                <span class="fraud-kpi__icon" aria-hidden="true">✕</span>
+                <span>Closed</span>
+                <strong id="all-kpi-closed">0</strong>
+                <em class="fraud-kpi__delta" id="all-kpi-closed-pct">0%</em>
+              </article>
+            </div>
+
+            <div class="fraud-ops__mid fraud-ops__mid--queue">
+              <section class="fraud-queue fraud-queue--page">
+                <div class="fraud-queue__controls fraud-queue__controls--bar">
+                  <input type="search" id="all-cases-search" class="fraud-ops__search-input" placeholder="Search by Case ID, domain, email, phone, or keyword…" autocomplete="off" />
+                  <select id="all-status-filter" class="fraud-ops__select" aria-label="Status">
+                    <option value="all">All Status</option>
+                    <option value="Pending Review">Pending Review</option>
+                    <option value="Under Review">Under Review</option>
+                    <option value="Closed">Closed</option>
+                  </select>
+                  <select id="all-category-filter" class="fraud-ops__select" aria-label="Category">
+                    <option value="all">All Categories</option>
+                    <option value="phishing">Phishing</option>
+                    <option value="banking_fraud">Banking fraud</option>
+                    <option value="investment_scam">Investment scam</option>
+                    <option value="delivery_scam">Delivery scam</option>
+                    <option value="social_engineering">Social engineering</option>
+                    <option value="general">General</option>
+                  </select>
+                  <select id="all-risk-filter" class="fraud-ops__select" aria-label="Risk level">
+                    <option value="all">All Risk Levels</option>
+                    <option value="high">High (80–100)</option>
+                    <option value="medium">Medium (50–79)</option>
+                    <option value="low">Low (0–49)</option>
+                  </select>
+                  <select id="all-source-filter" class="fraud-ops__select" aria-label="Source">
+                    <option value="all">All Sources</option>
+                    <option value="Message">Message</option>
+                    <option value="Email">Email</option>
+                    <option value="URL">URL</option>
+                    <option value="SMS">SMS</option>
+                    <option value="File">File</option>
+                  </select>
+                </div>
+                <div class="fraud-queue__table-wrap">
+                  <table class="fraud-queue__table fraud-queue__table--rich">
+                    <thead>
+                      <tr>
+                        <th scope="col" class="fraud-queue__check-col"><input type="checkbox" id="all-select-all" aria-label="Select all" /></th>
+                        <th scope="col"><span class="visually-hidden">Type</span></th>
+                        <th scope="col">Case ID</th>
+                        <th scope="col">Submitted</th>
+                        <th scope="col">Category</th>
+                        <th scope="col">Risk Score</th>
+                        <th scope="col">Source</th>
+                        <th scope="col">Status</th>
+                        <th scope="col">Assigned To</th>
+                        <th scope="col"><span class="visually-hidden">Actions</span></th>
+                      </tr>
+                    </thead>
+                    <tbody id="all-cases-list">
+                      <tr class="fraud-queue__empty-row">
+                        <td colspan="10">No cases yet. Customer fraud reports appear here.</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <div class="fraud-queue__footer">
+                  <p class="fraud-queue__pager" id="all-cases-pager">Showing 0 cases</p>
+                  <div class="fraud-queue__pages" id="all-cases-pages" hidden></div>
+                </div>
+              </section>
+
+              <aside class="fraud-analytics fraud-analytics--queue" aria-label="All cases analytics">
+                <div class="fraud-analytics__card">
+                  <h3>Cases by Status</h3>
+                  <div class="fraud-donut-wrap">
+                    <div class="fraud-donut fraud-donut--status" id="all-status-donut" style="--pending:0;--review:0;--closed:100;">
+                      <div class="fraud-donut__hole">
+                        <strong id="all-donut-total">0</strong>
+                        <span>Total</span>
+                      </div>
+                    </div>
+                    <ul class="fraud-donut__legend" id="all-status-legend">
+                      <li><i class="fraud-dot fraud-dot--pending"></i> Pending <span id="all-status-pending-pct">0%</span></li>
+                      <li><i class="fraud-dot fraud-dot--review"></i> In Review <span id="all-status-review-pct">0%</span></li>
+                      <li><i class="fraud-dot fraud-dot--closed"></i> Closed <span id="all-status-closed-pct">0%</span></li>
+                    </ul>
+                  </div>
+                </div>
+                <div class="fraud-analytics__card">
+                  <h3>Top Risk Levels</h3>
+                  <ul class="fraud-bars" id="all-risk-bars">
+                    <li class="fraud-bars__empty">No risk data yet.</li>
+                  </ul>
+                </div>
+                <div class="fraud-analytics__card">
+                  <h3>Quick Actions</h3>
+                  <div class="fraud-quick-filters">
+                    <button type="button" class="fraud-quick-filter" id="btn-all-advanced-search">Advanced Search</button>
+                    <button type="button" class="fraud-quick-filter" id="btn-all-export">Export Cases</button>
+                    <button type="button" class="fraud-quick-filter" id="btn-all-bulk">Bulk Update</button>
+                    <button type="button" class="fraud-quick-filter" id="btn-all-playbook">Create Playbook</button>
+                  </div>
+                </div>
+              </aside>
+            </div>
+          </div>
+
+          <!-- ACTIVE CAMPAIGNS PAGE -->
+          <div class="fraud-ops__campaigns-page" id="fraud-view-campaigns" hidden>
+            <div class="fraud-page-head">
+              <div>
+                <h1 class="fraud-page-head__title">
+                  Active Campaigns
+                  <span class="fraud-page-head__badge" id="fraud-campaigns-page-badge">0</span>
+                </h1>
+                <p class="fraud-page-head__sub">Monitor and manage ongoing fraud campaigns detected from customer reports.</p>
+              </div>
+              <button type="button" class="fraud-page-head__refresh" id="btn-fraud-campaigns-refresh">Refresh</button>
+            </div>
+
+            <div class="fraud-ops__kpis fraud-ops__kpis--campaigns">
+              <article class="fraud-kpi">
+                <span>Active Campaigns</span>
+                <strong id="camp-kpi-active">0</strong>
+                <em class="fraud-kpi__delta fraud-kpi__delta--up" id="camp-kpi-active-delta">—</em>
+              </article>
+              <article class="fraud-kpi">
+                <span>Total Reports</span>
+                <strong id="camp-kpi-reports">0</strong>
+                <em class="fraud-kpi__delta fraud-kpi__delta--up" id="camp-kpi-reports-delta">—</em>
+              </article>
+              <article class="fraud-kpi fraud-kpi--high">
+                <span>High Risk Campaigns</span>
+                <strong id="camp-kpi-high">0</strong>
+                <em class="fraud-kpi__delta fraud-kpi__delta--down" id="camp-kpi-high-delta">—</em>
+              </article>
+              <article class="fraud-kpi fraud-kpi--closed">
+                <span>Resolved This Week</span>
+                <strong id="camp-kpi-resolved">0</strong>
+                <em class="fraud-kpi__delta fraud-kpi__delta--up" id="camp-kpi-resolved-delta">—</em>
+              </article>
+              <article class="fraud-kpi fraud-kpi--ai">
+                <span>Avg. Reports / Campaign</span>
+                <strong id="camp-kpi-avg">0</strong>
+                <em class="fraud-kpi__delta" id="camp-kpi-avg-delta">No change</em>
+              </article>
+            </div>
+
+            <div class="fraud-camp-layout">
+              <section class="fraud-camp-list-panel">
+                <div class="fraud-camp-list-panel__controls">
+                  <input type="search" id="fraud-campaign-search" class="fraud-ops__search-input" placeholder="Search campaigns…" autocomplete="off" />
+                  <select id="fraud-campaign-sort" class="fraud-ops__select" aria-label="Sort campaigns">
+                    <option value="newest">Sort by: Newest</option>
+                    <option value="reports">Sort by: Most reports</option>
+                    <option value="risk">Sort by: Highest risk</option>
+                  </select>
+                </div>
+                <ul class="fraud-camp-list" id="fraud-campaign-page-list">
+                  <li class="fraud-camp-list__empty">No active campaigns yet.</li>
+                </ul>
+                <p class="fraud-queue__pager" id="fraud-campaign-pager">Showing 0 campaigns</p>
+              </section>
+
+              <aside class="fraud-camp-detail" id="fraud-campaign-detail">
+                <div class="fraud-camp-detail__empty" id="fraud-campaign-detail-empty">
+                  <h3>Select a campaign</h3>
+                  <p>Choose a campaign from the list to review reports, indicators, and trends.</p>
+                </div>
+                <div class="fraud-camp-detail__body" id="fraud-campaign-detail-body" hidden>
+                  <div class="fraud-camp-detail__head">
+                    <div class="fraud-camp-detail__title-row">
+                      <span class="fraud-camp-detail__icon" id="fraud-camp-detail-icon" aria-hidden="true">⚠</span>
+                      <div>
+                        <div class="fraud-camp-detail__name-row">
+                          <h2 id="fraud-camp-detail-title">Campaign</h2>
+                          <span class="fraud-campaign__risk" id="fraud-camp-detail-risk">High</span>
+                        </div>
+                        <p class="fraud-camp-detail__url" id="fraud-camp-detail-url" dir="ltr">—</p>
+                      </div>
+                    </div>
+                    <button type="button" class="fraud-open-link" id="btn-fraud-camp-view-cases">View linked cases →</button>
+                  </div>
+
+                  <div class="fraud-camp-detail__stats">
+                    <div><span>Total Reports</span><strong id="fraud-camp-stat-reports">0</strong><em id="fraud-camp-stat-today">—</em></div>
+                    <div><span>Unique Senders</span><strong id="fraud-camp-stat-senders">0</strong></div>
+                    <div><span>First Seen</span><strong id="fraud-camp-stat-first">—</strong></div>
+                    <div><span>Last Seen</span><strong id="fraud-camp-stat-last">—</strong></div>
+                    <div><span>Category</span><strong id="fraud-camp-stat-category">—</strong></div>
+                  </div>
+
+                  <div class="fraud-camp-detail__mid">
+                    <div class="fraud-camp-detail__desc">
+                      <h3>Campaign Description</h3>
+                      <p id="fraud-camp-detail-desc">—</p>
+                    </div>
+                    <div class="fraud-camp-detail__iocs">
+                      <h3>Common Indicators</h3>
+                      <ul id="fraud-camp-detail-iocs" class="fraud-camp-ioc-list"></ul>
+                      <button type="button" class="fraud-open-link" id="btn-fraud-camp-iocs">View all IOCs →</button>
+                    </div>
+                  </div>
+
+                  <div class="fraud-camp-detail__charts">
+                    <div class="fraud-camp-chart">
+                      <h3>Reports Trend <span>(last 7 days)</span></h3>
+                      <div class="fraud-trend" id="fraud-camp-trend" aria-hidden="true"></div>
+                    </div>
+                    <div class="fraud-camp-chart">
+                      <h3>Top Reporting Regions</h3>
+                      <ul class="fraud-bars" id="fraud-camp-regions">
+                        <li class="fraud-bars__empty">No region data.</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              </aside>
+            </div>
+          </div>
+        </div>
+
+        <div class="fraud-ops__drawer-backdrop" id="fraud-drawer-backdrop" hidden></div>
+        <aside class="fraud-ops__drawer" id="fraud-case-detail" hidden aria-label="Case investigation">
+          <div class="fraud-ops__drawer-head">
+            <h2>Case Investigation</h2>
+            <button type="button" class="fraud-ops__drawer-close" id="btn-fraud-close-drawer" aria-label="Close case">×</button>
+          </div>
+
+          <div class="fraud-ops__detail-empty" id="fraud-detail-empty">
+            <h3>Select a case</h3>
+            <p>Choose a reported case from the queue. AI investigation is already prepared — review and decide.</p>
+          </div>
+
+          <div class="fraud-ops__detail-body" id="fraud-detail-body" hidden>
+            <div class="fraud-detail__top">
+              <div>
+                <p class="fraud-detail__id" id="fraud-detail-id">FO-0000</p>
+                <h3 id="fraud-detail-title">Case title</h3>
+              </div>
+              <div class="fraud-detail__badges">
+                <span class="fraud-badge" id="fraud-detail-status">Pending Review</span>
+                <span class="fraud-badge fraud-badge--risk" id="fraud-detail-risk">—</span>
+              </div>
+            </div>
+
+            <div class="fraud-detail__meta">
+              <div><span>Submitted</span><strong id="fraud-detail-time">—</strong></div>
+              <div><span>Category</span><strong id="fraud-detail-type">—</strong></div>
+              <div><span>Probability</span><strong id="fraud-detail-score">—</strong></div>
+              <div><span>Channel</span><strong id="fraud-detail-threat">—</strong></div>
+            </div>
+
+            <div class="fraud-detail__section">
+              <h4>AI Investigation Summary</h4>
+              <p id="fraud-detail-summary">—</p>
+            </div>
+
+            <div class="fraud-detail__section">
+              <h4>Customer Report</h4>
+              <pre id="fraud-detail-evidence" class="fraud-detail__evidence"></pre>
+              <div id="fraud-detail-screenshot-wrap" class="fraud-detail__shot" hidden>
+                <img id="fraud-detail-screenshot" alt="Customer screenshot" />
+              </div>
+            </div>
+
+            <div class="fraud-detail__section">
+              <h4>Extracted Indicators of Compromise</h4>
+              <div class="fraud-ioc-grid" id="fraud-detail-iocs"></div>
+            </div>
+
+            <div class="fraud-detail__section fraud-rec" id="fraud-recommendation">
+              <h4>AI Recommendation</h4>
+              <div class="fraud-rec__card">
+                <strong id="fraud-rec-action">—</strong>
+                <p id="fraud-rec-rationale">—</p>
+                <span class="fraud-rec__conf" id="fraud-rec-confidence"></span>
+              </div>
+              <div class="fraud-detail__actions">
+                <button type="button" class="btn btn--primary" id="btn-fraud-approve">Approve</button>
+                <button type="button" class="btn btn--ghost" id="btn-fraud-modify">Modify</button>
+                <button type="button" class="btn btn--ghost" id="btn-fraud-reject">Reject</button>
+              </div>
+              <div class="fraud-modify" id="fraud-modify-panel" hidden>
+                <label for="fraud-modify-action">Modified action</label>
+                <select id="fraud-modify-action">
+                  <option>Block Sender</option>
+                  <option>Block Domain</option>
+                  <option>Escalate to Fraud Team</option>
+                  <option>Notify Customer</option>
+                  <option>Continue Monitoring</option>
+                  <option>False Positive</option>
+                </select>
+                <label for="fraud-modify-note">Analyst note</label>
+                <textarea id="fraud-modify-note" rows="2" placeholder="Optional note…"></textarea>
+                <button type="button" class="btn btn--primary" id="btn-fraud-modify-save">Save decision</button>
+              </div>
+            </div>
+
+            <div class="fraud-detail__section">
+              <h4>Generated Investigation Content</h4>
+              <div class="fraud-docs" id="fraud-docs">
+                <details open>
+                  <summary>Executive Investigation Summary</summary>
+                  <p id="fraud-doc-executive">—</p>
+                </details>
+                <details>
+                  <summary>Technical Investigation Summary</summary>
+                  <p id="fraud-doc-technical">—</p>
+                </details>
+                <details>
+                  <summary>Customer Notification Draft</summary>
+                  <pre id="fraud-doc-customer" class="fraud-detail__evidence"></pre>
+                </details>
+                <details>
+                  <summary>Management Summary</summary>
+                  <p id="fraud-doc-management">—</p>
+                </details>
+                <details>
+                  <summary>Investigation Notes</summary>
+                  <ul id="fraud-doc-notes" class="fraud-detail__list"></ul>
+                </details>
+              </div>
+            </div>
+
+            <div class="fraud-detail__section fraud-copilot" id="fraud-copilot-section">
+              <h4>AI Copilot</h4>
+              <p class="fraud-copilot__hint">Ask investigation questions about this case. Context is already loaded.</p>
+              <div class="fraud-copilot__messages" id="fraud-copilot-messages"></div>
+              <form class="fraud-copilot__form" id="fraud-copilot-form">
+                <input type="text" id="fraud-copilot-input" placeholder="e.g. Should we block this domain for all customers?" autocomplete="off" />
+                <button type="submit" class="btn btn--primary">Ask</button>
+              </form>
+            </div>
+          </div>
+        </aside>
       </div>
 
       <footer class="bs-dashboard-footer">

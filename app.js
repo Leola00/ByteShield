@@ -310,6 +310,12 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     document.body.style.overflow = 'hidden';
     byteshieldPanel.scrollTop = 0;
     updateResultsVisibility();
+    if (activeMode === 'fraud') {
+      if (fraudOpsAuthenticated) enterFraudOpsDashboard();
+      else showFraudLogin();
+    } else {
+      hideFraudLogin();
+    }
   });
 
   closeByteshield.addEventListener('click', () => {
@@ -481,10 +487,104 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
   const fraudOps = document.getElementById('fraud-ops');
   const fraudCaseList = document.getElementById('fraud-case-list');
   const fraudQueueCount = document.getElementById('fraud-queue-count');
+  const fraudQueuePager = document.getElementById('fraud-queue-pager');
   const fraudKpiTotal = document.getElementById('fraud-kpi-total');
   const fraudKpiPending = document.getElementById('fraud-kpi-pending');
   const fraudKpiReview = document.getElementById('fraud-kpi-review');
   const fraudKpiClosed = document.getElementById('fraud-kpi-closed');
+  const fraudKpiHigh = document.getElementById('fraud-kpi-high');
+  const fraudKpiAi = document.getElementById('fraud-kpi-ai');
+  const fraudKpiPendingDelta = document.getElementById('fraud-kpi-pending-delta');
+  const fraudKpiReviewDelta = document.getElementById('fraud-kpi-review-delta');
+  const fraudKpiClosedDelta = document.getElementById('fraud-kpi-closed-delta');
+  const fraudKpiHighDelta = document.getElementById('fraud-kpi-high-delta');
+  const fraudKpiAiDelta = document.getElementById('fraud-kpi-ai-delta');
+  const fraudViewDashboard = document.getElementById('fraud-view-dashboard');
+  const fraudViewQueue = document.getElementById('fraud-view-queue');
+  const fraudViewCampaigns = document.getElementById('fraud-view-campaigns');
+  const fraudViewAll = document.getElementById('fraud-view-all');
+  const fraudQueuePageBadge = document.getElementById('fraud-queue-page-badge');
+  const fraudCampaignsPageBadge = document.getElementById('fraud-campaigns-page-badge');
+  const fraudStatusFilter = document.getElementById('fraud-status-filter');
+  const btnFraudBackServices = document.getElementById('btn-fraud-back-services');
+  const btnFraudCampaignsRefresh = document.getElementById('btn-fraud-campaigns-refresh');
+  const btnFraudAllRefresh = document.getElementById('btn-fraud-all-refresh');
+  const fraudSelectAll = document.getElementById('fraud-select-all');
+  const fraudQueuePages = document.getElementById('fraud-queue-pages');
+  const allCasesList = document.getElementById('all-cases-list');
+  const allCasesSearch = document.getElementById('all-cases-search');
+  const allStatusFilter = document.getElementById('all-status-filter');
+  const allCategoryFilter = document.getElementById('all-category-filter');
+  const allRiskFilter = document.getElementById('all-risk-filter');
+  const allSourceFilter = document.getElementById('all-source-filter');
+  const allCasesPager = document.getElementById('all-cases-pager');
+  const allCasesPages = document.getElementById('all-cases-pages');
+  const allSelectAll = document.getElementById('all-select-all');
+  const allKpiTotal = document.getElementById('all-kpi-total');
+  const allKpiPending = document.getElementById('all-kpi-pending');
+  const allKpiReview = document.getElementById('all-kpi-review');
+  const allKpiResolved = document.getElementById('all-kpi-resolved');
+  const allKpiClosed = document.getElementById('all-kpi-closed');
+  const allKpiTotalPct = document.getElementById('all-kpi-total-pct');
+  const allKpiPendingPct = document.getElementById('all-kpi-pending-pct');
+  const allKpiReviewPct = document.getElementById('all-kpi-review-pct');
+  const allKpiResolvedPct = document.getElementById('all-kpi-resolved-pct');
+  const allKpiClosedPct = document.getElementById('all-kpi-closed-pct');
+  const allStatusDonut = document.getElementById('all-status-donut');
+  const allDonutTotal = document.getElementById('all-donut-total');
+  const allStatusPendingPct = document.getElementById('all-status-pending-pct');
+  const allStatusReviewPct = document.getElementById('all-status-review-pct');
+  const allStatusClosedPct = document.getElementById('all-status-closed-pct');
+  const allRiskBars = document.getElementById('all-risk-bars');
+  const btnAllAdvancedSearch = document.getElementById('btn-all-advanced-search');
+  const btnAllExport = document.getElementById('btn-all-export');
+  const btnAllBulk = document.getElementById('btn-all-bulk');
+  const btnAllPlaybook = document.getElementById('btn-all-playbook');
+  const fraudCampaignPageList = document.getElementById('fraud-campaign-page-list');
+  const fraudCampaignSearch = document.getElementById('fraud-campaign-search');
+  const fraudCampaignSort = document.getElementById('fraud-campaign-sort');
+  const fraudCampaignPager = document.getElementById('fraud-campaign-pager');
+  const fraudCampaignDetailEmpty = document.getElementById('fraud-campaign-detail-empty');
+  const fraudCampaignDetailBody = document.getElementById('fraud-campaign-detail-body');
+  const fraudCampDetailTitle = document.getElementById('fraud-camp-detail-title');
+  const fraudCampDetailRisk = document.getElementById('fraud-camp-detail-risk');
+  const fraudCampDetailUrl = document.getElementById('fraud-camp-detail-url');
+  const fraudCampDetailIcon = document.getElementById('fraud-camp-detail-icon');
+  const fraudCampStatReports = document.getElementById('fraud-camp-stat-reports');
+  const fraudCampStatToday = document.getElementById('fraud-camp-stat-today');
+  const fraudCampStatSenders = document.getElementById('fraud-camp-stat-senders');
+  const fraudCampStatFirst = document.getElementById('fraud-camp-stat-first');
+  const fraudCampStatLast = document.getElementById('fraud-camp-stat-last');
+  const fraudCampStatCategory = document.getElementById('fraud-camp-stat-category');
+  const fraudCampDetailDesc = document.getElementById('fraud-camp-detail-desc');
+  const fraudCampDetailIocs = document.getElementById('fraud-camp-detail-iocs');
+  const fraudCampTrend = document.getElementById('fraud-camp-trend');
+  const fraudCampRegions = document.getElementById('fraud-camp-regions');
+  const btnFraudCampViewCases = document.getElementById('btn-fraud-camp-view-cases');
+  const campKpiActive = document.getElementById('camp-kpi-active');
+  const campKpiReports = document.getElementById('camp-kpi-reports');
+  const campKpiHigh = document.getElementById('camp-kpi-high');
+  const campKpiResolved = document.getElementById('camp-kpi-resolved');
+  const campKpiAvg = document.getElementById('camp-kpi-avg');
+  const campKpiActiveDelta = document.getElementById('camp-kpi-active-delta');
+  const campKpiReportsDelta = document.getElementById('camp-kpi-reports-delta');
+  const campKpiHighDelta = document.getElementById('camp-kpi-high-delta');
+  const campKpiResolvedDelta = document.getElementById('camp-kpi-resolved-delta');
+  const campKpiAvgDelta = document.getElementById('camp-kpi-avg-delta');
+  const fraudAlertBadge = document.getElementById('fraud-alert-badge');
+  const fraudRiskDonut = document.getElementById('fraud-risk-donut');
+  const fraudDonutTotal = document.getElementById('fraud-donut-total');
+  const fraudRiskHighPct = document.getElementById('fraud-risk-high-pct');
+  const fraudRiskMediumPct = document.getElementById('fraud-risk-medium-pct');
+  const fraudRiskLowPct = document.getElementById('fraud-risk-low-pct');
+  const fraudThreatBars = document.getElementById('fraud-threat-bars');
+  const fraudAlertsList = document.getElementById('fraud-alerts-list');
+  const fraudAiInsights = document.getElementById('fraud-ai-insights');
+  const fraudDrawerBackdrop = document.getElementById('fraud-drawer-backdrop');
+  const fraudCaseDetail = document.getElementById('fraud-case-detail');
+  const btnFraudCloseDrawer = document.getElementById('btn-fraud-close-drawer');
+  const btnFraudOpenCopilot = document.getElementById('btn-fraud-open-copilot');
+  const btnFraudExport = document.getElementById('btn-fraud-export');
   const fraudDetailEmpty = document.getElementById('fraud-detail-empty');
   const fraudDetailBody = document.getElementById('fraud-detail-body');
   const fraudDetailId = document.getElementById('fraud-detail-id');
@@ -524,15 +624,80 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
   const fraudDocNotes = document.getElementById('fraud-doc-notes');
 
   let fraudCasesCache = [];
+  let fraudCampaignsCache = [];
   let selectedFraudCase = null;
   let fraudCopilotHistory = [];
   let fraudSearchQuery = '';
   let fraudCategory = 'all';
+  let fraudView = 'dashboard';
+  let fraudQuickFilter = null;
+  let selectedCampaignId = null;
+  let campaignSearchQuery = '';
+  let campaignSort = 'newest';
+  let allCasesCache = [];
+  let allSearchQuery = '';
+  let allStatus = 'all';
+  let allCategory = 'all';
+  let allRisk = 'all';
+  let allSource = 'all';
   let lastScreenshotDataUrl = null;
+  let fraudOpsAuthenticated = false;
+  const FRAUD_AUTH_KEY = 'byteshield_fraud_ops_auth';
+
+  try {
+    fraudOpsAuthenticated = sessionStorage.getItem(FRAUD_AUTH_KEY) === '1'
+      || localStorage.getItem(FRAUD_AUTH_KEY) === '1';
+  } catch {
+    fraudOpsAuthenticated = false;
+  }
+
+  const fraudLogin = document.getElementById('fraud-login');
+  const fraudLoginForm = document.getElementById('fraud-login-form');
+  const fraudLoginUser = document.getElementById('fraud-login-user');
+  const fraudLoginPass = document.getElementById('fraud-login-pass');
+  const fraudLoginRemember = document.getElementById('fraud-login-remember');
+  const fraudLoginError = document.getElementById('fraud-login-error');
+  const fraudLoginTogglePass = document.getElementById('fraud-login-toggle-pass');
+  const fraudLoginSso = document.getElementById('fraud-login-sso');
+  const fraudLoginForgot = document.getElementById('fraud-login-forgot');
+  const btnFraudLogout = document.getElementById('btn-fraud-logout');
 
   modeTabs.forEach((tab) => {
     tab.addEventListener('click', () => switchMode(tab.dataset.mode));
   });
+
+  function setFraudAuth(authenticated, remember) {
+    fraudOpsAuthenticated = !!authenticated;
+    try {
+      if (authenticated) {
+        sessionStorage.setItem(FRAUD_AUTH_KEY, '1');
+        if (remember) localStorage.setItem(FRAUD_AUTH_KEY, '1');
+        else localStorage.removeItem(FRAUD_AUTH_KEY);
+      } else {
+        sessionStorage.removeItem(FRAUD_AUTH_KEY);
+        localStorage.removeItem(FRAUD_AUTH_KEY);
+      }
+    } catch {
+      /* ignore storage errors */
+    }
+  }
+
+  function showFraudLogin() {
+    if (fraudLogin) fraudLogin.hidden = false;
+    if (fraudOps) fraudOps.hidden = true;
+    if (byteshieldPanel) byteshieldPanel.classList.add('byteshield-panel--fraud-login');
+  }
+
+  function hideFraudLogin() {
+    if (fraudLogin) fraudLogin.hidden = true;
+    if (byteshieldPanel) byteshieldPanel.classList.remove('byteshield-panel--fraud-login');
+  }
+
+  function enterFraudOpsDashboard() {
+    hideFraudLogin();
+    if (fraudOps) fraudOps.hidden = false;
+    renderFraudOpsDashboard();
+  }
 
   function switchMode(mode) {
     // Map legacy 'soc' to 'fraud'
@@ -546,7 +711,7 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     });
 
     if (bsIntroUser) bsIntroUser.hidden = mode !== 'user';
-    if (bsIntroSoc) bsIntroSoc.hidden = mode !== 'fraud';
+    if (bsIntroSoc) bsIntroSoc.hidden = true;
 
     const hero = MAIN_HERO[mode] || MAIN_HERO.user;
     if (alinmaHeroTitle) alinmaHeroTitle.textContent = hero.title;
@@ -564,15 +729,23 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     }
 
     if (userWorkspace) userWorkspace.hidden = isFraud;
-    if (fraudOps) fraudOps.hidden = !isFraud;
+
+    if (isFraud) {
+      if (fraudOpsAuthenticated) {
+        enterFraudOpsDashboard();
+      } else {
+        showFraudLogin();
+      }
+    } else {
+      hideFraudLogin();
+      if (fraudOps) fraudOps.hidden = true;
+    }
 
     if (recommendCard) {
       recommendCard.hidden = mode !== 'user' || !lastUserReport;
     }
 
     updateScanInputForMode(mode);
-
-    if (isFraud) renderFraudOpsDashboard();
 
     updateResultsVisibility();
   }
@@ -2068,8 +2241,8 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
 
   function scoreLevelClass(score) {
     const n = Number(score) || 0;
-    if (n >= 61) return 'high';
-    if (n >= 31) return 'medium';
+    if (n >= 80) return 'high';
+    if (n >= 50) return 'medium';
     return 'low';
   }
 
@@ -2078,6 +2251,238 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     if (status === 'Under Review') return 'open';
     if (status === 'Closed') return 'closed';
     return 'open';
+  }
+
+  function sourceIcon(contentType) {
+    const t = (contentType || '').toLowerCase();
+    if (t.includes('url') || t.includes('link')) return '🌐';
+    if (t.includes('email') || t.includes('mail')) return '✉️';
+    if (t.includes('sms') || t.includes('whatsapp')) return '💬';
+    if (t.includes('file') || t.includes('image') || t.includes('pdf')) return '📎';
+    return '💬';
+  }
+
+  function setTextAll(selector, text) {
+    document.querySelectorAll(selector).forEach((el) => {
+      el.textContent = text;
+    });
+  }
+
+  function switchFraudView(view) {
+    const allowed = ['dashboard', 'queue', 'campaigns', 'all'];
+    const target = allowed.includes(view) ? view : 'dashboard';
+    fraudView = target;
+    if (fraudViewDashboard) fraudViewDashboard.hidden = target !== 'dashboard';
+    if (fraudViewQueue) fraudViewQueue.hidden = target !== 'queue';
+    if (fraudViewCampaigns) fraudViewCampaigns.hidden = target !== 'campaigns';
+    if (fraudViewAll) fraudViewAll.hidden = target !== 'all';
+  }
+
+  function setActiveFraudNav(navKey) {
+    document.querySelectorAll('.fraud-nav-item[data-fraud-nav]').forEach((b) => {
+      const nav = b.dataset.fraudNav;
+      let active = false;
+      if (navKey === 'dashboard') active = nav === 'dashboard';
+      else if (navKey === 'campaigns') active = nav === 'campaigns';
+      else if (navKey === 'all') active = nav === 'all';
+      else if (navKey === 'queue') active = nav === 'queue' && !b.dataset.fraudFilterNav;
+      else if (navKey === 'review') active = b.dataset.fraudFilterNav === 'Under Review';
+      else if (navKey === 'pending') active = b.dataset.fraudFilterNav === 'Pending Review';
+      else active = nav === 'queue' && !b.dataset.fraudFilterNav;
+      b.classList.toggle('fraud-nav-item--active', active);
+    });
+  }
+
+  function openFraudDrawer() {
+    if (fraudCaseDetail) fraudCaseDetail.hidden = false;
+    if (fraudDrawerBackdrop) fraudDrawerBackdrop.hidden = false;
+  }
+
+  function closeFraudDrawer() {
+    if (fraudCaseDetail) fraudCaseDetail.hidden = true;
+    if (fraudDrawerBackdrop) fraudDrawerBackdrop.hidden = true;
+    if (fraudDetailEmpty) fraudDetailEmpty.hidden = false;
+    if (fraudDetailBody) fraudDetailBody.hidden = true;
+    selectedFraudCaseId = null;
+    selectedFraudCase = null;
+  }
+
+  function scrollFraudSection(nav) {
+    if (nav === 'dashboard') {
+      switchFraudView('dashboard');
+      setActiveFraudNav('dashboard');
+      return;
+    }
+    if (nav === 'campaigns') {
+      switchFraudView('campaigns');
+      setActiveFraudNav('campaigns');
+      renderCampaignsPage();
+      return;
+    }
+    if (nav === 'all') {
+      switchFraudView('all');
+      setActiveFraudNav('all');
+      renderAllCasesPage();
+      return;
+    }
+    switchFraudView('queue');
+    if (nav === 'analytics' || nav === 'actions') setActiveFraudNav('queue');
+    else setActiveFraudNav('queue');
+  }
+
+  function getVisibleFraudCases() {
+    let list = fraudCasesCache.slice();
+    if (fraudQuickFilter === 'high') {
+      list = list.filter((c) => Number(c.fraudProbability) >= 80);
+    }
+    return list;
+  }
+
+  function caseSubtitle(c) {
+    const preview = (c.preview || '').toString().trim();
+    if (preview) return preview.slice(0, 48);
+    const urls = c.urls || [];
+    if (urls[0]) return String(urls[0]).slice(0, 48);
+    return (c.fraudCategory || 'Customer report').replace(/_/g, ' ');
+  }
+
+  function applyFraudKpis(stats, cases) {
+    const pending = stats.pending || 0;
+    const review = stats.underReview || 0;
+    const closedToday = stats.closedToday != null
+      ? stats.closedToday
+      : (cases || []).filter((c) => c.status === 'Closed').length;
+    const highRisk = stats.highRisk != null
+      ? stats.highRisk
+      : (cases || []).filter((c) => Number(c.fraudProbability) >= 70).length;
+    const total = stats.total || 0;
+    const closed = stats.closed || 0;
+    const aiPct = total > 0 ? Math.min(96, Math.round(55 + (closed / Math.max(total, 1)) * 40)) : 0;
+
+    if (fraudKpiTotal) fraudKpiTotal.textContent = String(total);
+    setTextAll('.fraud-kpi-pending-val', String(pending));
+    setTextAll('.fraud-kpi-review-val', String(review));
+    setTextAll('.fraud-kpi-closed-val', String(closedToday));
+    setTextAll('.fraud-kpi-high-val', String(highRisk));
+    setTextAll('.fraud-kpi-ai-val', total ? `${aiPct}%` : '—');
+
+    const pendingDelta = pending ? `${pending} awaiting triage` : 'Queue clear';
+    const reviewDelta = review ? `${review} in progress` : 'No change';
+    const closedDelta = closedToday ? `↑ ${closedToday} today` : 'No closures today';
+    const highDelta = highRisk ? `↑ ${highRisk} high risk` : 'No high risk';
+    const aiDelta = total ? 'avg. time saved' : 'Awaiting cases';
+
+    setTextAll('.fraud-kpi-pending-delta', pendingDelta);
+    setTextAll('.fraud-kpi-review-delta', reviewDelta);
+    setTextAll('.fraud-kpi-closed-delta', closedDelta);
+    setTextAll('.fraud-kpi-high-delta', highDelta);
+    setTextAll('.fraud-kpi-ai-delta', aiDelta);
+
+    if (fraudKpiPendingDelta) fraudKpiPendingDelta.textContent = pendingDelta;
+    if (fraudKpiReviewDelta) fraudKpiReviewDelta.textContent = reviewDelta;
+    if (fraudKpiClosedDelta) fraudKpiClosedDelta.textContent = closedDelta;
+    if (fraudKpiHighDelta) fraudKpiHighDelta.textContent = highDelta;
+    if (fraudKpiAiDelta) fraudKpiAiDelta.textContent = aiDelta;
+
+    if (fraudQueueCount) fraudQueueCount.textContent = String((cases || []).length);
+    if (fraudQueuePageBadge) fraudQueuePageBadge.textContent = String((cases || []).length);
+    if (fraudAlertBadge) fraudAlertBadge.textContent = String(Math.min(99, highRisk || pending));
+  }
+
+  function renderRiskCharts(cases) {
+    const list = cases || [];
+    let high = 0;
+    let medium = 0;
+    let low = 0;
+    const threatCounts = {};
+
+    list.forEach((c) => {
+      const level = scoreLevelClass(c.fraudProbability);
+      if (level === 'high') high += 1;
+      else if (level === 'medium') medium += 1;
+      else low += 1;
+      const key = (c.fraudCategory || 'general').replace(/_/g, ' ');
+      threatCounts[key] = (threatCounts[key] || 0) + 1;
+    });
+
+    const total = list.length || 0;
+    const highPct = total ? Math.round((high / total) * 100) : 0;
+    const mediumPct = total ? Math.round((medium / total) * 100) : 0;
+    const lowPct = total ? Math.max(0, 100 - highPct - mediumPct) : 100;
+
+    if (fraudRiskDonut) {
+      fraudRiskDonut.style.setProperty('--high', String(highPct));
+      fraudRiskDonut.style.setProperty('--medium', String(mediumPct));
+      fraudRiskDonut.style.setProperty('--low', String(lowPct));
+    }
+    if (fraudDonutTotal) fraudDonutTotal.textContent = String(total);
+    if (fraudRiskHighPct) fraudRiskHighPct.textContent = `${highPct}%`;
+    if (fraudRiskMediumPct) fraudRiskMediumPct.textContent = `${mediumPct}%`;
+    if (fraudRiskLowPct) fraudRiskLowPct.textContent = `${lowPct}%`;
+
+    if (fraudThreatBars) {
+      const entries = Object.entries(threatCounts).sort((a, b) => b[1] - a[1]).slice(0, 5);
+      if (!entries.length) {
+        fraudThreatBars.innerHTML = '<li class="fraud-bars__empty">No threat data yet.</li>';
+      } else {
+        const max = Math.max(...entries.map(([, n]) => n), 1);
+        fraudThreatBars.innerHTML = entries.map(([label, count]) => {
+          const width = Math.round((count / max) * 100);
+          return `<li class="fraud-bar">
+            <span>${escapeHtml(label)}</span>
+            <div class="fraud-bar__track"><div class="fraud-bar__fill" style="width:${width}%"></div></div>
+            <span class="fraud-bar__count">${count}</span>
+          </li>`;
+        }).join('');
+      }
+    }
+  }
+
+  function renderFraudAlerts(cases, campaigns) {
+    if (!fraudAlertsList) return;
+    const alerts = [];
+    (cases || [])
+      .filter((c) => Number(c.fraudProbability) >= 61)
+      .slice(0, 4)
+      .forEach((c) => {
+        alerts.push({
+          title: c.preview || c.id,
+          time: c.submittedAt
+            ? new Date(c.submittedAt).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' })
+            : '',
+          sev: scoreLevelClass(c.fraudProbability),
+        });
+      });
+    (campaigns || []).slice(0, 2).forEach((c) => {
+      alerts.push({
+        title: `Campaign: ${c.title || c.id}`,
+        time: `${c.reportCount || 0} reports`,
+        sev: (c.reportCount || 0) >= 5 ? 'high' : 'medium',
+      });
+    });
+
+    if (!alerts.length) {
+      fraudAlertsList.innerHTML = '<li class="fraud-alerts__empty">No alerts yet.</li>';
+    } else {
+      fraudAlertsList.innerHTML = alerts.slice(0, 5).map((a) => `
+        <li class="fraud-alert">
+          <div>
+            <strong>${escapeHtml((a.title || '').toString().slice(0, 64))}</strong>
+            <span>${escapeHtml(a.time)}</span>
+          </div>
+          <span class="fraud-alert__sev fraud-alert__sev--${a.sev}">${a.sev}</span>
+        </li>`).join('');
+    }
+
+    if (fraudAiInsights) {
+      const high = (cases || []).filter((c) => Number(c.fraudProbability) >= 70).length;
+      const camp = (campaigns || []).length;
+      if (!cases?.length) {
+        fraudAiInsights.textContent = 'AI will surface patterns once cases are reported.';
+      } else {
+        fraudAiInsights.textContent = `AI detected ${high} high-risk case${high === 1 ? '' : 's'} and ${camp} active campaign${camp === 1 ? '' : 's'}. Prioritize pending reviews with overlapping IOCs.`;
+      }
+    }
   }
 
   async function renderFraudOpsDashboard() {
@@ -2100,20 +2505,23 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
       }
 
       fraudCasesCache = casesJson.cases || [];
+      fraudCampaignsCache = campaignsJson.success ? (campaignsJson.campaigns || []) : [];
       const stats = casesJson.stats || {};
 
-      if (fraudKpiTotal) fraudKpiTotal.textContent = String(stats.total || 0);
-      if (fraudKpiPending) fraudKpiPending.textContent = String(stats.pending || 0);
-      if (fraudKpiReview) fraudKpiReview.textContent = String(stats.underReview || 0);
-      if (fraudKpiClosed) fraudKpiClosed.textContent = String(stats.closed || 0);
-      if (fraudQueueCount) fraudQueueCount.textContent = String(fraudCasesCache.length);
-
-      renderFraudCaseList();
-      renderFraudCampaigns(campaignsJson.success ? campaignsJson.campaigns : []);
+      applyFraudKpis(stats, fraudCasesCache);
+      renderFraudCaseTable();
+      renderFraudCampaigns(fraudCampaignsCache);
+      renderRiskCharts(fraudCasesCache);
+      renderFraudAlerts(fraudCasesCache, fraudCampaignsCache);
+      if (fraudView === 'campaigns') renderCampaignsPage();
+      if (fraudView === 'all') {
+        allCasesCache = fraudCasesCache.slice();
+        renderAllCasesPage();
+      }
     } catch (err) {
       console.error(err);
       if (fraudCaseList) {
-        fraudCaseList.innerHTML = `<p class="fraud-ops__empty">Could not load cases.<br>${escapeHtml(err.message)}</p>`;
+        fraudCaseList.innerHTML = `<tr class="fraud-queue__empty-row"><td colspan="7">Could not load cases. ${escapeHtml(err.message)}</td></tr>`;
       }
     }
   }
@@ -2125,40 +2533,427 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
       fraudCampaignsList.innerHTML = '<li class="fraud-campaigns__empty">No active campaigns yet.</li>';
       return;
     }
-    fraudCampaignsList.innerHTML = active.slice(0, 8).map((c) => `
+    fraudCampaignsList.innerHTML = active.slice(0, 8).map((c) => {
+      const risk = c.riskLevel || ((c.reportCount || 0) >= 5 ? 'high' : (c.reportCount || 0) >= 2 ? 'medium' : 'low');
+      return `
       <li class="fraud-campaign">
+        <div class="fraud-campaign__top">
+          <span class="fraud-campaign__icon" aria-hidden="true">⚠</span>
+          <span class="fraud-campaign__risk fraud-campaign__risk--${risk}">${risk}</span>
+        </div>
         <strong>${escapeHtml(c.title || 'Campaign')}</strong>
-        <span>${c.reportCount || 0} report${(c.reportCount || 0) === 1 ? '' : 's'}</span>
-      </li>`).join('');
+        <div class="fraud-campaign__meta">
+          <span>${c.reportCount || 0} report${(c.reportCount || 0) === 1 ? '' : 's'}</span>
+          <span>+${Math.min(c.reportsThisWeek || c.reportCount || 0, 15)} today</span>
+        </div>
+      </li>`;
+    }).join('');
   }
 
-  function renderFraudCaseList() {
-    if (!fraudCaseList) return;
+  function getSortedCampaigns() {
+    let list = (fraudCampaignsCache || []).slice();
+    if (campaignSearchQuery) {
+      const q = campaignSearchQuery.toLowerCase();
+      list = list.filter((c) =>
+        [c.title, c.primaryUrl, c.fraudCategory, c.id]
+          .join(' ')
+          .toLowerCase()
+          .includes(q),
+      );
+    }
+    if (campaignSort === 'reports') {
+      list.sort((a, b) => (b.reportCount || 0) - (a.reportCount || 0));
+    } else if (campaignSort === 'risk') {
+      list.sort((a, b) => (b.riskScore || 0) - (a.riskScore || 0));
+    } else {
+      list.sort((a, b) => new Date(b.lastSeenAt || 0) - new Date(a.lastSeenAt || 0));
+    }
+    return list;
+  }
 
-    if (!fraudCasesCache.length) {
-      fraudCaseList.innerHTML = `<p class="fraud-ops__empty" id="fraud-list-empty">No reported cases yet.<br>Customer fraud reports appear here.</p>`;
+  function applyCampaignKpis(campaigns) {
+    const list = campaigns || [];
+    const active = list.length;
+    const reports = list.reduce((sum, c) => sum + (c.reportCount || 0), 0);
+    const high = list.filter((c) => (c.riskLevel || scoreLevelClass(c.riskScore)) === 'high').length;
+    const resolved = list.filter((c) => String(c.status).toLowerCase() === 'resolved' || String(c.status).toLowerCase() === 'closed').length;
+    const avg = active ? (reports / active).toFixed(1) : '0';
+
+    if (campKpiActive) campKpiActive.textContent = String(active);
+    if (campKpiReports) campKpiReports.textContent = String(reports);
+    if (campKpiHigh) campKpiHigh.textContent = String(high);
+    if (campKpiResolved) campKpiResolved.textContent = String(resolved);
+    if (campKpiAvg) campKpiAvg.textContent = String(avg);
+    if (campKpiActiveDelta) campKpiActiveDelta.textContent = active ? `↑ ${active} active` : 'No campaigns';
+    if (campKpiReportsDelta) campKpiReportsDelta.textContent = reports ? `↑ ${reports} total reports` : '—';
+    if (campKpiHighDelta) campKpiHighDelta.textContent = high ? `↑ ${high} high risk` : 'No high risk';
+    if (campKpiResolvedDelta) campKpiResolvedDelta.textContent = resolved ? `↑ ${resolved} resolved` : 'None this week';
+    if (campKpiAvgDelta) campKpiAvgDelta.textContent = active ? 'avg reports / campaign' : 'No change';
+    if (fraudCampaignsPageBadge) fraudCampaignsPageBadge.textContent = String(active);
+  }
+
+  function renderCampaignsPage() {
+    applyCampaignKpis(fraudCampaignsCache);
+    const list = getSortedCampaigns();
+    if (!fraudCampaignPageList) return;
+
+    if (!list.length) {
+      fraudCampaignPageList.innerHTML = '<li class="fraud-camp-list__empty">No active campaigns yet.</li>';
+      if (fraudCampaignPager) fraudCampaignPager.textContent = 'Showing 0 campaigns';
+      if (fraudCampaignDetailEmpty) fraudCampaignDetailEmpty.hidden = false;
+      if (fraudCampaignDetailBody) fraudCampaignDetailBody.hidden = true;
       return;
     }
 
-    fraudCaseList.innerHTML = fraudCasesCache.map((c) => {
-      const isSelected = c.id === selectedFraudCaseId;
+    if (!selectedCampaignId || !list.some((c) => c.id === selectedCampaignId)) {
+      selectedCampaignId = list[0].id;
+    }
+
+    fraudCampaignPageList.innerHTML = list.map((c) => {
+      const risk = c.riskLevel || scoreLevelClass(c.riskScore);
+      const url = c.primaryUrl || (c.fraudCategory || 'general').replace(/_/g, ' ');
+      return `
+        <li>
+          <button type="button" class="fraud-camp-card${c.id === selectedCampaignId ? ' fraud-camp-card--active' : ''}" data-campaign-id="${escapeHtml(c.id)}">
+            <span class="fraud-camp-card__icon" aria-hidden="true">${c.primaryUrl ? '🌐' : '💬'}</span>
+            <div class="fraud-camp-card__body">
+              <strong>${escapeHtml(c.title || 'Campaign')}</strong>
+              <span dir="ltr">${escapeHtml(url)}</span>
+            </div>
+            <div class="fraud-camp-card__meta">
+              <span class="fraud-campaign__risk fraud-campaign__risk--${risk}">${risk}</span>
+              <em>${c.reportCount || 0} reports</em>
+            </div>
+          </button>
+        </li>`;
+    }).join('');
+
+    if (fraudCampaignPager) {
+      const n = list.length;
+      fraudCampaignPager.textContent = `Showing 1 to ${n} of ${n} campaign${n === 1 ? '' : 's'}`;
+    }
+
+    fraudCampaignPageList.querySelectorAll('.fraud-camp-card').forEach((btn) => {
+      btn.addEventListener('click', () => selectCampaign(btn.dataset.campaignId));
+    });
+
+    selectCampaign(selectedCampaignId);
+  }
+
+  function formatCampDate(iso) {
+    if (!iso) return '\u2014';
+    return new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium' }).format(new Date(iso));
+  }
+
+  function selectCampaign(id) {
+    selectedCampaignId = id;
+    const campaign = (fraudCampaignsCache || []).find((c) => c.id === id);
+    if (!campaign) return;
+
+    fraudCampaignPageList?.querySelectorAll('.fraud-camp-card').forEach((el) => {
+      el.classList.toggle('fraud-camp-card--active', el.dataset.campaignId === id);
+    });
+
+    if (fraudCampaignDetailEmpty) fraudCampaignDetailEmpty.hidden = true;
+    if (fraudCampaignDetailBody) fraudCampaignDetailBody.hidden = false;
+
+    const risk = campaign.riskLevel || scoreLevelClass(campaign.riskScore);
+    if (fraudCampDetailTitle) fraudCampDetailTitle.textContent = campaign.title || 'Campaign';
+    if (fraudCampDetailRisk) {
+      fraudCampDetailRisk.textContent = `${risk} risk`;
+      fraudCampDetailRisk.className = `fraud-campaign__risk fraud-campaign__risk--${risk}`;
+    }
+    if (fraudCampDetailUrl) fraudCampDetailUrl.textContent = campaign.primaryUrl || 'No primary URL';
+    if (fraudCampDetailIcon) fraudCampDetailIcon.textContent = campaign.primaryUrl ? '🌐' : '💬';
+    if (fraudCampStatReports) fraudCampStatReports.textContent = String(campaign.reportCount || 0);
+    if (fraudCampStatToday) {
+      const week = campaign.reportsThisWeek || 0;
+      fraudCampStatToday.textContent = week ? `+${week} this week` : '—';
+    }
+    if (fraudCampStatSenders) fraudCampStatSenders.textContent = String(campaign.uniqueSenders || 0);
+    if (fraudCampStatFirst) fraudCampStatFirst.textContent = formatCampDate(campaign.firstSeenAt);
+    if (fraudCampStatLast) fraudCampStatLast.textContent = formatCampDate(campaign.lastSeenAt);
+    if (fraudCampStatCategory) {
+      fraudCampStatCategory.textContent = (campaign.fraudCategory || 'general').replace(/_/g, ' ');
+    }
+    if (fraudCampDetailDesc) fraudCampDetailDesc.textContent = campaign.description || '—';
+
+    if (fraudCampDetailIocs) {
+      const iocs = campaign.iocs || {};
+      const items = [];
+      (iocs.domains || []).slice(0, 2).forEach((v) => items.push({ type: 'Domain', value: v }));
+      (iocs.urls || []).slice(0, 2).forEach((v) => items.push({ type: 'URL', value: v }));
+      (iocs.phones || []).slice(0, 2).forEach((v) => items.push({ type: 'Phone', value: v }));
+      (iocs.emails || []).slice(0, 2).forEach((v) => items.push({ type: 'Email', value: v }));
+      fraudCampDetailIocs.innerHTML = items.length
+        ? items.map((i) => `<li><strong>${i.type}</strong>${escapeHtml(i.value)}</li>`).join('')
+        : '<li>No IOCs extracted yet.</li>';
+    }
+
+    if (fraudCampTrend) {
+      const trend = campaign.trend || [0, 0, 0, 0, 0, 0, 0];
+      const max = Math.max(...trend, 1);
+      fraudCampTrend.innerHTML = trend.map((n) => {
+        const h = Math.max(8, Math.round((n / max) * 100));
+        return `<div class="fraud-trend__bar" style="height:${h}%" title="${n} reports"></div>`;
+      }).join('');
+    }
+
+    if (fraudCampRegions) {
+      const regions = campaign.regions || [];
+      if (!regions.length) {
+        fraudCampRegions.innerHTML = '<li class="fraud-bars__empty">No region data.</li>';
+      } else {
+        const max = Math.max(...regions.map((r) => r.count || 0), 1);
+        fraudCampRegions.innerHTML = regions.map((r) => {
+          const width = Math.round(((r.count || 0) / max) * 100);
+          return `<li class="fraud-bar">
+            <span>${escapeHtml(r.name)}</span>
+            <div class="fraud-bar__track"><div class="fraud-bar__fill" style="width:${width}%"></div></div>
+            <span class="fraud-bar__count">${r.count || 0}</span>
+          </li>`;
+        }).join('');
+      }
+    }
+  }
+
+  function renderFraudCaseTable() {
+    if (!fraudCaseList) return;
+    const visible = getVisibleFraudCases();
+
+    if (!visible.length) {
+      fraudCaseList.innerHTML = `<tr class="fraud-queue__empty-row" id="fraud-list-empty"><td colspan="9">No reported cases yet. Customer fraud reports appear here.</td></tr>`;
+      if (fraudQueuePager) fraudQueuePager.textContent = 'Showing 0 cases';
+      if (fraudQueuePages) fraudQueuePages.hidden = true;
+      return;
+    }
+
+    fraudCaseList.innerHTML = visible.map((c) => {
       const levelClass = scoreLevelClass(c.fraudProbability);
       const date = c.submittedAt
         ? new Date(c.submittedAt).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })
         : '\u2014';
-      const preview = (c.preview || c.fraudCategory || 'Customer report').toString().slice(0, 72);
+      const category = (c.fraudCategory || 'general').replace(/_/g, ' ');
+      const source = c.contentType || 'Message';
+      const statusClass = statusBadgeClass(c.status);
+      const icon = sourceIcon(source);
+      const sub = caseSubtitle(c);
       return `
-        <button type="button" class="fraud-case${isSelected ? ' fraud-case--active' : ''}" data-case-id="${escapeHtml(c.id)}">
-          <div class="fraud-case__top">
-            <span class="fraud-case__id">${escapeHtml(c.id)}</span>
-            <span class="fraud-case__score fraud-case__score--${levelClass}">${c.fraudProbability || 0}%</span>
-          </div>
-          <p class="fraud-case__title">${escapeHtml(preview)}</p>
-          <p class="fraud-case__meta">${escapeHtml(c.status)} \u00b7 ${escapeHtml((c.fraudCategory || 'general').replace(/_/g, ' '))} \u00b7 ${date}</p>
-        </button>`;
+        <tr data-case-id="${escapeHtml(c.id)}" class="${c.id === selectedFraudCaseId ? 'fraud-queue__row--active' : ''}">
+          <td><input type="checkbox" class="fraud-row-check" aria-label="Select ${escapeHtml(c.id)}" /></td>
+          <td><span class="fraud-queue__type-icon" aria-hidden="true">${icon}</span></td>
+          <td>
+            <div class="fraud-queue__case-cell">
+              <span class="fraud-queue__id">${escapeHtml(c.id)}</span>
+              <span class="fraud-queue__case-sub" title="${escapeHtml(sub)}">${escapeHtml(sub)}</span>
+            </div>
+          </td>
+          <td>${escapeHtml(date)}</td>
+          <td>${escapeHtml(category)}</td>
+          <td><span class="fraud-score-pill fraud-score-pill--${levelClass}">${c.fraudProbability || 0}</span></td>
+          <td><span class="fraud-source">${icon} ${escapeHtml(source)}</span></td>
+          <td><span class="fraud-status-pill fraud-status-pill--${statusClass}">${escapeHtml(c.status)}</span></td>
+          <td><button type="button" class="fraud-open-link" data-case-id="${escapeHtml(c.id)}">View →</button></td>
+        </tr>`;
     }).join('');
 
-    fraudCaseList.querySelectorAll('.fraud-case').forEach((el) => {
+    const n = visible.length;
+    if (fraudQueuePager) {
+      fraudQueuePager.textContent = `Showing 1 to ${n} of ${n} case${n === 1 ? '' : 's'}`;
+    }
+    if (fraudQueuePages) {
+      fraudQueuePages.hidden = false;
+      fraudQueuePages.innerHTML = `<button type="button" class="fraud-page-btn fraud-page-btn--active">1</button>`;
+    }
+    if (fraudQueuePageBadge) fraudQueuePageBadge.textContent = String(n);
+    if (fraudQueueCount) fraudQueueCount.textContent = String(n);
+
+    fraudCaseList.querySelectorAll('.fraud-open-link').forEach((el) => {
+      el.addEventListener('click', () => selectFraudCase(el.dataset.caseId));
+    });
+  }
+
+  function renderFraudCaseList() {
+    renderFraudCaseTable();
+  }
+
+  function pct(part, total) {
+    if (!total) return 0;
+    return Math.round((part / total) * 100);
+  }
+
+  function getFilteredAllCases() {
+    let list = (allCasesCache.length ? allCasesCache : fraudCasesCache).slice();
+    if (allStatus && allStatus !== 'all') {
+      list = list.filter((c) => c.status === allStatus);
+    }
+    if (allCategory && allCategory !== 'all') {
+      list = list.filter((c) => (c.fraudCategory || '').toLowerCase() === allCategory.toLowerCase());
+    }
+    if (allRisk && allRisk !== 'all') {
+      list = list.filter((c) => scoreLevelClass(c.fraudProbability) === allRisk);
+    }
+    if (allSource && allSource !== 'all') {
+      list = list.filter((c) => String(c.contentType || '').toLowerCase().includes(allSource.toLowerCase()));
+    }
+    if (allSearchQuery) {
+      const q = allSearchQuery.toLowerCase();
+      list = list.filter((c) => {
+        const hay = [
+          c.id,
+          c.preview,
+          c.fraudCategory,
+          c.contentType,
+          c.status,
+          ...(c.urls || []),
+          ...(c.emails || []),
+        ].join(' ').toLowerCase();
+        return hay.includes(q);
+      });
+    }
+    return list;
+  }
+
+  function applyAllCasesKpis(cases) {
+    const list = cases || [];
+    const total = list.length;
+    const pending = list.filter((c) => c.status === 'Pending Review').length;
+    const review = list.filter((c) => c.status === 'Under Review').length;
+    const closed = list.filter((c) => c.status === 'Closed').length;
+    const hasDecisions = list.some((c) => c.decision);
+    const resolvedCount = hasDecisions
+      ? list.filter((c) => c.status === 'Closed' && c.decision?.outcome === 'approve').length
+      : closed;
+    const closedCount = hasDecisions
+      ? list.filter((c) => c.status === 'Closed' && c.decision?.outcome !== 'approve').length
+      : 0;
+
+    if (allKpiTotal) allKpiTotal.textContent = String(total);
+    if (allKpiPending) allKpiPending.textContent = String(pending);
+    if (allKpiReview) allKpiReview.textContent = String(review);
+    if (allKpiResolved) allKpiResolved.textContent = String(resolvedCount);
+    if (allKpiClosed) allKpiClosed.textContent = String(closedCount);
+    if (allKpiTotalPct) allKpiTotalPct.textContent = total ? '100%' : '0%';
+    if (allKpiPendingPct) allKpiPendingPct.textContent = `${pct(pending, total)}%`;
+    if (allKpiReviewPct) allKpiReviewPct.textContent = `${pct(review, total)}%`;
+    if (allKpiResolvedPct) allKpiResolvedPct.textContent = `${pct(resolvedCount, total)}%`;
+    if (allKpiClosedPct) allKpiClosedPct.textContent = `${pct(closedCount, total)}%`;
+
+    const pendingPct = pct(pending, total);
+    const reviewPct = pct(review, total);
+    const closedPct = Math.max(0, 100 - pendingPct - reviewPct);
+    if (allStatusDonut) {
+      allStatusDonut.style.setProperty('--pending', String(pendingPct));
+      allStatusDonut.style.setProperty('--review', String(reviewPct));
+      allStatusDonut.style.setProperty('--closed', String(total ? closedPct : 100));
+    }
+    if (allDonutTotal) allDonutTotal.textContent = String(total);
+    if (allStatusPendingPct) allStatusPendingPct.textContent = `${pendingPct}%`;
+    if (allStatusReviewPct) allStatusReviewPct.textContent = `${reviewPct}%`;
+    if (allStatusClosedPct) allStatusClosedPct.textContent = `${closedPct}%`;
+
+    if (allRiskBars) {
+      let high = 0;
+      let medium = 0;
+      let low = 0;
+      list.forEach((c) => {
+        const level = scoreLevelClass(c.fraudProbability);
+        if (level === 'high') high += 1;
+        else if (level === 'medium') medium += 1;
+        else low += 1;
+      });
+      const max = Math.max(high, medium, low, 1);
+      allRiskBars.innerHTML = [
+        { label: 'High (80–100)', count: high },
+        { label: 'Medium (50–79)', count: medium },
+        { label: 'Low (0–49)', count: low },
+      ].map((r) => {
+        const width = Math.round((r.count / max) * 100);
+        return `<li class="fraud-bar">
+          <span>${r.label}</span>
+          <div class="fraud-bar__track"><div class="fraud-bar__fill" style="width:${width}%"></div></div>
+          <span class="fraud-bar__count">${r.count}</span>
+        </li>`;
+      }).join('');
+    }
+  }
+
+  async function renderAllCasesPage() {
+    try {
+      // Always load unfiltered set for All Cases
+      const res = await fetch(getApiUrl('/api/cases'));
+      const json = await res.json();
+      if (!res.ok || !json.success) throw new Error(json.error || 'Failed to load cases');
+      allCasesCache = json.cases || [];
+      applyAllCasesKpis(allCasesCache);
+      renderAllCasesTable();
+    } catch (err) {
+      console.error(err);
+      if (allCasesList) {
+        allCasesList.innerHTML = `<tr class="fraud-queue__empty-row"><td colspan="10">Could not load cases. ${escapeHtml(err.message)}</td></tr>`;
+      }
+    }
+  }
+
+  function renderAllCasesTable() {
+    if (!allCasesList) return;
+    const visible = getFilteredAllCases();
+
+    if (!visible.length) {
+      allCasesList.innerHTML = `<tr class="fraud-queue__empty-row"><td colspan="10">No cases match the current filters.</td></tr>`;
+      if (allCasesPager) allCasesPager.textContent = 'Showing 0 cases';
+      if (allCasesPages) allCasesPages.hidden = true;
+      return;
+    }
+
+    allCasesList.innerHTML = visible.map((c) => {
+      const levelClass = scoreLevelClass(c.fraudProbability);
+      const date = c.submittedAt
+        ? new Date(c.submittedAt).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })
+        : '\u2014';
+      const category = (c.fraudCategory || 'general').replace(/_/g, ' ');
+      const source = c.contentType || 'Message';
+      const statusClass = statusBadgeClass(c.status);
+      const icon = sourceIcon(source);
+      const sub = caseSubtitle(c);
+      const assignee = c.status === 'Under Review' || c.status === 'Closed' ? 'Analyst' : 'Unassigned';
+      const initial = assignee === 'Unassigned' ? '?' : 'A';
+      return `
+        <tr data-case-id="${escapeHtml(c.id)}">
+          <td><input type="checkbox" class="all-row-check" aria-label="Select ${escapeHtml(c.id)}" /></td>
+          <td><span class="fraud-queue__type-icon" aria-hidden="true">${icon}</span></td>
+          <td>
+            <div class="fraud-queue__case-cell">
+              <span class="fraud-queue__id">${escapeHtml(c.id)}</span>
+              <span class="fraud-queue__case-sub" title="${escapeHtml(sub)}">${escapeHtml(sub)}</span>
+            </div>
+          </td>
+          <td>${escapeHtml(date)}</td>
+          <td><span class="fraud-category-pill">${escapeHtml(category)}</span></td>
+          <td><span class="fraud-score-pill fraud-score-pill--${levelClass}">${c.fraudProbability || 0}</span></td>
+          <td><span class="fraud-source">${icon} ${escapeHtml(source)}</span></td>
+          <td><span class="fraud-status-pill fraud-status-pill--${statusClass}">${escapeHtml(c.status)}</span></td>
+          <td>
+            <span class="fraud-assignee">
+              <span class="fraud-assignee__avatar">${initial}</span>
+              ${escapeHtml(assignee)}
+            </span>
+          </td>
+          <td>
+            <button type="button" class="fraud-open-link all-case-open" data-case-id="${escapeHtml(c.id)}">View</button>
+            <button type="button" class="fraud-row-menu" data-case-id="${escapeHtml(c.id)}" aria-label="More actions">⋯</button>
+          </td>
+        </tr>`;
+    }).join('');
+
+    const n = visible.length;
+    if (allCasesPager) allCasesPager.textContent = `Showing 1 to ${n} of ${n} case${n === 1 ? '' : 's'}`;
+    if (allCasesPages) {
+      allCasesPages.hidden = false;
+      allCasesPages.innerHTML = `<button type="button" class="fraud-page-btn fraud-page-btn--active">1</button>`;
+    }
+
+    allCasesList.querySelectorAll('.all-case-open, .fraud-row-menu').forEach((el) => {
       el.addEventListener('click', () => selectFraudCase(el.dataset.caseId));
     });
   }
@@ -2207,12 +3002,7 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     fraudCopilotHistory = [];
     if (fraudCopilotMessages) fraudCopilotMessages.innerHTML = '';
     if (fraudModifyPanel) fraudModifyPanel.hidden = true;
-
-    if (fraudCaseList) {
-      fraudCaseList.querySelectorAll('.fraud-case').forEach((el) => {
-        el.classList.toggle('fraud-case--active', el.dataset.caseId === id);
-      });
-    }
+    openFraudDrawer();
 
     try {
       const response = await fetch(getApiUrl(`/api/cases/${encodeURIComponent(id)}`));
@@ -2282,20 +3072,15 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
       const closed = c.status === 'Closed';
       applyFraudDecisionButtons(c.decision, closed);
 
-      // Soft-refresh queue counts after Pending → Under Review
       try {
         const statsRes = await fetch(getApiUrl('/api/cases'));
         const statsJson = await statsRes.json();
         if (statsJson.success && statsJson.stats) {
-          const stats = statsJson.stats;
-          if (fraudKpiTotal) fraudKpiTotal.textContent = String(stats.total || 0);
-          if (fraudKpiPending) fraudKpiPending.textContent = String(stats.pending || 0);
-          if (fraudKpiReview) fraudKpiReview.textContent = String(stats.underReview || 0);
-          if (fraudKpiClosed) fraudKpiClosed.textContent = String(stats.closed || 0);
+          applyFraudKpis(statsJson.stats, fraudCasesCache);
         }
         const cached = fraudCasesCache.find((x) => x.id === id);
         if (cached) cached.status = c.status;
-        renderFraudCaseList();
+        renderFraudCaseTable();
       } catch {
         /* ignore */
       }
@@ -2432,10 +3217,321 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
   }
 
   // Wire fraud ops events
+  function completeFraudLogin(remember) {
+    setFraudAuth(true, remember);
+    if (fraudLoginError) fraudLoginError.hidden = true;
+    enterFraudOpsDashboard();
+    showToast('Signed in to Fraud Ops');
+  }
+
+  if (fraudLoginForm) {
+    fraudLoginForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const user = fraudLoginUser?.value?.trim() || '';
+      const pass = fraudLoginPass?.value || '';
+      if (!user || !pass) {
+        if (fraudLoginError) {
+          fraudLoginError.textContent = 'Please enter your username and password.';
+          fraudLoginError.hidden = false;
+        }
+        return;
+      }
+      completeFraudLogin(!!fraudLoginRemember?.checked);
+    });
+  }
+
+  if (fraudLoginSso) {
+    fraudLoginSso.addEventListener('click', () => {
+      completeFraudLogin(!!fraudLoginRemember?.checked);
+    });
+  }
+
+  if (fraudLoginTogglePass && fraudLoginPass) {
+    fraudLoginTogglePass.addEventListener('click', () => {
+      const show = fraudLoginPass.type === 'password';
+      fraudLoginPass.type = show ? 'text' : 'password';
+      fraudLoginTogglePass.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+    });
+  }
+
+  if (fraudLoginForgot) {
+    fraudLoginForgot.addEventListener('click', () => {
+      showToast('Contact your bank admin to reset Fraud Ops access');
+    });
+  }
+
+  if (btnFraudLogout) {
+    btnFraudLogout.addEventListener('click', () => {
+      setFraudAuth(false, false);
+      if (fraudLoginUser) fraudLoginUser.value = '';
+      if (fraudLoginPass) fraudLoginPass.value = '';
+      showFraudLogin();
+      showToast('Signed out');
+    });
+  }
+
   if (btnFraudRefresh) {
     btnFraudRefresh.addEventListener('click', () => {
       renderFraudOpsDashboard();
       showToast('Fraud queue refreshed');
+    });
+  }
+
+  if (btnFraudCloseDrawer) {
+    btnFraudCloseDrawer.addEventListener('click', () => closeFraudDrawer());
+  }
+  if (fraudDrawerBackdrop) {
+    fraudDrawerBackdrop.addEventListener('click', () => closeFraudDrawer());
+  }
+
+  if (btnFraudOpenCopilot) {
+    btnFraudOpenCopilot.addEventListener('click', () => {
+      if (selectedFraudCaseId) {
+        openFraudDrawer();
+        document.getElementById('fraud-copilot-section')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        fraudCopilotInput?.focus();
+      } else if (fraudCasesCache.length) {
+        selectFraudCase(fraudCasesCache[0].id).then(() => {
+          document.getElementById('fraud-copilot-section')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          fraudCopilotInput?.focus();
+        });
+      } else {
+        showToast('Open a case first to use Copilot');
+        scrollFraudSection('queue');
+      }
+    });
+  }
+
+  if (btnFraudExport) {
+    btnFraudExport.addEventListener('click', () => {
+      const rows = [
+        ['Case ID', 'Status', 'Category', 'Risk', 'Submitted', 'Source'],
+        ...fraudCasesCache.map((c) => [
+          c.id,
+          c.status,
+          c.fraudCategory || '',
+          String(c.fraudProbability || 0),
+          c.submittedAt || '',
+          c.contentType || '',
+        ]),
+      ];
+      const csv = rows.map((r) => r.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `byteshield-fraud-cases-${Date.now()}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast('Case report exported');
+    });
+  }
+
+  document.querySelectorAll('[data-fraud-nav]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const nav = btn.dataset.fraudNav;
+      const filterNav = btn.dataset.fraudFilterNav;
+
+      // All Cases page (must run before filterNav handling)
+      if (nav === 'all') {
+        allStatus = 'all';
+        allCategory = 'all';
+        allRisk = 'all';
+        allSource = 'all';
+        allSearchQuery = '';
+        if (allStatusFilter) allStatusFilter.value = 'all';
+        if (allCategoryFilter) allCategoryFilter.value = 'all';
+        if (allRiskFilter) allRiskFilter.value = 'all';
+        if (allSourceFilter) allSourceFilter.value = 'all';
+        if (allCasesSearch) allCasesSearch.value = '';
+        scrollFraudSection('all');
+        return;
+      }
+
+      if (filterNav) {
+        fraudFilter = filterNav;
+        fraudQuickFilter = null;
+        if (fraudStatusFilter) fraudStatusFilter.value = filterNav;
+        document.querySelectorAll('.fraud-filter').forEach((b) => {
+          b.classList.toggle('fraud-filter--active', b.dataset.fraudFilter === fraudFilter);
+        });
+        switchFraudView('queue');
+        if (filterNav === 'Under Review') setActiveFraudNav('review');
+        else if (filterNav === 'Pending Review') setActiveFraudNav('pending');
+        else setActiveFraudNav('queue');
+        renderFraudOpsDashboard();
+        return;
+      }
+      scrollFraudSection(nav);
+    });
+  });
+
+  document.querySelectorAll('[data-fraud-quick]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const q = btn.dataset.fraudQuick;
+      document.querySelectorAll('[data-fraud-quick]').forEach((b) => {
+        b.classList.toggle('fraud-quick-filter--active', b === btn);
+      });
+      if (q === 'high') {
+        fraudQuickFilter = 'high';
+        fraudFilter = 'all';
+        if (fraudStatusFilter) fraudStatusFilter.value = 'all';
+      } else if (q === 'review') {
+        fraudQuickFilter = null;
+        fraudFilter = 'Under Review';
+        if (fraudStatusFilter) fraudStatusFilter.value = 'Under Review';
+      } else if (q === 'pending') {
+        fraudQuickFilter = null;
+        fraudFilter = 'Pending Review';
+        if (fraudStatusFilter) fraudStatusFilter.value = 'Pending Review';
+      } else {
+        fraudQuickFilter = null;
+        fraudFilter = 'all';
+        if (fraudStatusFilter) fraudStatusFilter.value = 'all';
+      }
+      document.querySelectorAll('.fraud-filter').forEach((b) => {
+        b.classList.toggle('fraud-filter--active', b.dataset.fraudFilter === fraudFilter);
+      });
+      switchFraudView('queue');
+      setActiveFraudNav('queue');
+      renderFraudOpsDashboard();
+    });
+  });
+
+  if (fraudStatusFilter) {
+    fraudStatusFilter.addEventListener('change', () => {
+      fraudFilter = fraudStatusFilter.value || 'all';
+      fraudQuickFilter = null;
+      document.querySelectorAll('.fraud-filter').forEach((b) => {
+        b.classList.toggle('fraud-filter--active', b.dataset.fraudFilter === fraudFilter);
+      });
+      document.querySelectorAll('[data-fraud-quick]').forEach((b) => b.classList.remove('fraud-quick-filter--active'));
+      renderFraudOpsDashboard();
+    });
+  }
+
+  if (btnFraudBackServices) {
+    btnFraudBackServices.addEventListener('click', () => {
+      document.getElementById('close-byteshield')?.click();
+    });
+  }
+
+  if (btnFraudCampaignsRefresh) {
+    btnFraudCampaignsRefresh.addEventListener('click', async () => {
+      await renderFraudOpsDashboard();
+      renderCampaignsPage();
+      showToast('Campaigns refreshed');
+    });
+  }
+
+  if (fraudCampaignSearch) {
+    let campSearchTimer = null;
+    fraudCampaignSearch.addEventListener('input', () => {
+      clearTimeout(campSearchTimer);
+      campSearchTimer = setTimeout(() => {
+        campaignSearchQuery = fraudCampaignSearch.value.trim();
+        renderCampaignsPage();
+      }, 200);
+    });
+  }
+
+  if (fraudCampaignSort) {
+    fraudCampaignSort.addEventListener('change', () => {
+      campaignSort = fraudCampaignSort.value || 'newest';
+      renderCampaignsPage();
+    });
+  }
+
+  if (btnFraudCampViewCases) {
+    btnFraudCampViewCases.addEventListener('click', () => {
+      switchFraudView('queue');
+      setActiveFraudNav('queue');
+      showToast('Showing case queue — filter by campaign cases as needed');
+    });
+  }
+
+  if (btnFraudAllRefresh) {
+    btnFraudAllRefresh.addEventListener('click', async () => {
+      await renderAllCasesPage();
+      showToast('All cases refreshed');
+    });
+  }
+
+  if (allCasesSearch) {
+    let allSearchTimer = null;
+    allCasesSearch.addEventListener('input', () => {
+      clearTimeout(allSearchTimer);
+      allSearchTimer = setTimeout(() => {
+        allSearchQuery = allCasesSearch.value.trim();
+        renderAllCasesTable();
+      }, 200);
+    });
+  }
+
+  function refreshAllFiltersFromControls() {
+    allStatus = allStatusFilter?.value || 'all';
+    allCategory = allCategoryFilter?.value || 'all';
+    allRisk = allRiskFilter?.value || 'all';
+    allSource = allSourceFilter?.value || 'all';
+    renderAllCasesTable();
+  }
+
+  [allStatusFilter, allCategoryFilter, allRiskFilter, allSourceFilter].forEach((el) => {
+    el?.addEventListener('change', refreshAllFiltersFromControls);
+  });
+
+  if (allSelectAll) {
+    allSelectAll.addEventListener('change', () => {
+      allCasesList?.querySelectorAll('.all-row-check').forEach((cb) => {
+        cb.checked = allSelectAll.checked;
+      });
+    });
+  }
+
+  if (btnAllAdvancedSearch) {
+    btnAllAdvancedSearch.addEventListener('click', () => {
+      allCasesSearch?.focus();
+      showToast('Use the search and filters above');
+    });
+  }
+
+  if (btnAllExport) {
+    btnAllExport.addEventListener('click', () => {
+      const rows = [
+        ['Case ID', 'Status', 'Category', 'Risk', 'Submitted', 'Source'],
+        ...getFilteredAllCases().map((c) => [
+          c.id,
+          c.status,
+          c.fraudCategory || '',
+          String(c.fraudProbability || 0),
+          c.submittedAt || '',
+          c.contentType || '',
+        ]),
+      ];
+      const csv = rows.map((r) => r.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `byteshield-all-cases-${Date.now()}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast('Cases exported');
+    });
+  }
+
+  if (btnAllBulk) {
+    btnAllBulk.addEventListener('click', () => showToast('Select cases with checkboxes, then use View to update'));
+  }
+  if (btnAllPlaybook) {
+    btnAllPlaybook.addEventListener('click', () => showToast('Playbook builder coming soon'));
+  }
+
+  if (fraudSelectAll) {
+    fraudSelectAll.addEventListener('change', () => {
+      fraudCaseList?.querySelectorAll('.fraud-row-check').forEach((cb) => {
+        cb.checked = fraudSelectAll.checked;
+      });
     });
   }
 
