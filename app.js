@@ -503,6 +503,10 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
   const fraudViewQueue = document.getElementById('fraud-view-queue');
   const fraudViewCampaigns = document.getElementById('fraud-view-campaigns');
   const fraudViewAll = document.getElementById('fraud-view-all');
+  const fraudViewPlaybooks = document.getElementById('fraud-view-playbooks');
+  const fraudPlaybookList = document.getElementById('fraud-playbook-list');
+  const fraudPlaybookEmpty = document.getElementById('fraud-playbook-empty');
+  const fraudPlaybookBody = document.getElementById('fraud-playbook-body');
   const fraudQueuePageBadge = document.getElementById('fraud-queue-page-badge');
   const fraudCampaignsPageBadge = document.getElementById('fraud-campaigns-page-badge');
   const fraudStatusFilter = document.getElementById('fraud-status-filter');
@@ -539,7 +543,6 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
   const btnAllAdvancedSearch = document.getElementById('btn-all-advanced-search');
   const btnAllExport = document.getElementById('btn-all-export');
   const btnAllBulk = document.getElementById('btn-all-bulk');
-  const btnAllPlaybook = document.getElementById('btn-all-playbook');
   const fraudCampaignPageList = document.getElementById('fraud-campaign-page-list');
   const fraudCampaignSearch = document.getElementById('fraud-campaign-search');
   const fraudCampaignSort = document.getElementById('fraud-campaign-sort');
@@ -561,6 +564,12 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
   const fraudCampTrend = document.getElementById('fraud-camp-trend');
   const fraudCampRegions = document.getElementById('fraud-camp-regions');
   const btnFraudCampViewCases = document.getElementById('btn-fraud-camp-view-cases');
+  const btnFraudCampIocs = document.getElementById('btn-fraud-camp-iocs');
+  const fraudCampIocModal = document.getElementById('fraud-camp-ioc-modal');
+  const fraudCampIocModalBackdrop = document.getElementById('fraud-camp-ioc-modal-backdrop');
+  const btnFraudCampIocClose = document.getElementById('btn-fraud-camp-ioc-close');
+  const fraudCampIocModalTitle = document.getElementById('fraud-camp-ioc-modal-title');
+  const fraudCampIocModalGrid = document.getElementById('fraud-camp-ioc-modal-grid');
   const campKpiActive = document.getElementById('camp-kpi-active');
   const campKpiReports = document.getElementById('camp-kpi-reports');
   const campKpiHigh = document.getElementById('camp-kpi-high');
@@ -634,6 +643,7 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
   let selectedCampaignId = null;
   let campaignSearchQuery = '';
   let campaignSort = 'newest';
+  let selectedPlaybookId = null;
   let allCasesCache = [];
   let allSearchQuery = '';
   let allStatus = 'all';
@@ -2269,13 +2279,14 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
   }
 
   function switchFraudView(view) {
-    const allowed = ['dashboard', 'queue', 'campaigns', 'all'];
+    const allowed = ['dashboard', 'queue', 'campaigns', 'all', 'playbooks'];
     const target = allowed.includes(view) ? view : 'dashboard';
     fraudView = target;
     if (fraudViewDashboard) fraudViewDashboard.hidden = target !== 'dashboard';
     if (fraudViewQueue) fraudViewQueue.hidden = target !== 'queue';
     if (fraudViewCampaigns) fraudViewCampaigns.hidden = target !== 'campaigns';
     if (fraudViewAll) fraudViewAll.hidden = target !== 'all';
+    if (fraudViewPlaybooks) fraudViewPlaybooks.hidden = target !== 'playbooks';
   }
 
   function setActiveFraudNav(navKey) {
@@ -2285,6 +2296,7 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
       if (navKey === 'dashboard') active = nav === 'dashboard';
       else if (navKey === 'campaigns') active = nav === 'campaigns';
       else if (navKey === 'all') active = nav === 'all';
+      else if (navKey === 'playbooks') active = nav === 'playbooks';
       else if (navKey === 'queue') active = nav === 'queue' && !b.dataset.fraudFilterNav;
       else if (navKey === 'review') active = b.dataset.fraudFilterNav === 'Under Review';
       else if (navKey === 'pending') active = b.dataset.fraudFilterNav === 'Pending Review';
@@ -2325,9 +2337,90 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
       renderAllCasesPage();
       return;
     }
+    if (nav === 'playbooks') {
+      switchFraudView('playbooks');
+      setActiveFraudNav('playbooks');
+      renderPlaybooksPage();
+      return;
+    }
     switchFraudView('queue');
-    if (nav === 'analytics' || nav === 'actions') setActiveFraudNav('queue');
-    else setActiveFraudNav('queue');
+    setActiveFraudNav('queue');
+  }
+
+  function getPlaybooksData() {
+    return (typeof FRAUD_PLAYBOOKS !== 'undefined' && Array.isArray(FRAUD_PLAYBOOKS))
+      ? FRAUD_PLAYBOOKS
+      : [];
+  }
+
+  function renderPlaybooksPage() {
+    const playbooks = getPlaybooksData();
+    if (!fraudPlaybookList) return;
+
+    if (!playbooks.length) {
+      fraudPlaybookList.innerHTML = '<li class="fraud-camp-list__empty">No playbooks available.</li>';
+      return;
+    }
+
+    if (!selectedPlaybookId || !playbooks.some((p) => p.id === selectedPlaybookId)) {
+      selectedPlaybookId = playbooks[0].id;
+    }
+
+    fraudPlaybookList.innerHTML = playbooks.map((p) => `
+      <li>
+        <button type="button" class="fraud-playbook-card${p.id === selectedPlaybookId ? ' fraud-playbook-card--active' : ''}" data-playbook-id="${escapeHtml(p.id)}">
+          <strong>${escapeHtml(p.title)}</strong>
+          <span>${escapeHtml(p.summary || '')}</span>
+          <em>${escapeHtml(p.tag || 'Playbook')}</em>
+        </button>
+      </li>`).join('');
+
+    fraudPlaybookList.querySelectorAll('[data-playbook-id]').forEach((btn) => {
+      btn.addEventListener('click', () => selectPlaybook(btn.dataset.playbookId));
+    });
+
+    selectPlaybook(selectedPlaybookId);
+  }
+
+  function selectPlaybook(id) {
+    selectedPlaybookId = id;
+    const playbook = getPlaybooksData().find((p) => p.id === id);
+    if (!playbook || !fraudPlaybookBody) return;
+
+    fraudPlaybookList?.querySelectorAll('[data-playbook-id]').forEach((btn) => {
+      btn.classList.toggle('fraud-playbook-card--active', btn.dataset.playbookId === id);
+    });
+
+    if (fraudPlaybookEmpty) fraudPlaybookEmpty.hidden = true;
+    fraudPlaybookBody.hidden = false;
+
+    const sourcesHtml = (playbook.sources || []).map((s) =>
+      `<li><a href="${escapeHtml(s.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(s.label)}</a></li>`,
+    ).join('');
+
+    const phasesHtml = (playbook.phases || []).map((phase) => `
+      <section class="fraud-playbook-phase">
+        <div class="fraud-playbook-phase__head">
+          <h3>${escapeHtml(phase.title || '')}</h3>
+          <p>${escapeHtml(phase.description || '')}</p>
+        </div>
+        <div class="fraud-playbook-tasks">
+          ${(phase.tasks || []).map((task) => `
+            <article class="fraud-playbook-task">
+              <strong>${escapeHtml(task.title || '')}</strong>
+              <p><span class="fraud-playbook-task__label">Operator action:</span> ${escapeHtml(task.detail || '')}</p>
+            </article>`).join('')}
+        </div>
+      </section>`).join('');
+
+    fraudPlaybookBody.innerHTML = `
+      <header class="fraud-playbook-hero">
+        <span class="fraud-playbook-hero__tag">${escapeHtml(playbook.tag || 'Fraud playbook')}</span>
+        <h2>${escapeHtml(playbook.title || 'Playbook')}</h2>
+        <p>${escapeHtml(playbook.summary || '')}</p>
+        <ul class="fraud-playbook-sources">${sourcesHtml}</ul>
+      </header>
+      <div class="fraud-playbook-phases">${phasesHtml}</div>`;
   }
 
   function getVisibleFraudCases() {
@@ -2645,6 +2738,25 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     return new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium' }).format(new Date(iso));
   }
 
+  function getTrendDayLabels() {
+    const labels = [];
+    for (let daysAgo = 6; daysAgo >= 0; daysAgo -= 1) {
+      const date = new Date();
+      date.setHours(0, 0, 0, 0);
+      date.setDate(date.getDate() - daysAgo);
+      if (daysAgo === 0) labels.push('Today');
+      else if (daysAgo === 1) labels.push('Yesterday');
+      else labels.push(new Intl.DateTimeFormat('en-GB', { weekday: 'short' }).format(date));
+    }
+    return labels;
+  }
+
+  function trendBarCaption(count) {
+    if (!count) return 'No customer reports that day.';
+    if (count === 1) return '1 customer report submitted.';
+    return `${count} customer reports submitted.`;
+  }
+
   function selectCampaign(id) {
     selectedCampaignId = id;
     const campaign = (fraudCampaignsCache || []).find((c) => c.id === id);
@@ -2692,10 +2804,19 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
 
     if (fraudCampTrend) {
       const trend = campaign.trend || [0, 0, 0, 0, 0, 0, 0];
+      const dayLabels = getTrendDayLabels();
       const max = Math.max(...trend, 1);
-      fraudCampTrend.innerHTML = trend.map((n) => {
+      fraudCampTrend.innerHTML = trend.map((n, index) => {
         const h = Math.max(8, Math.round((n / max) * 100));
-        return `<div class="fraud-trend__bar" style="height:${h}%" title="${n} reports"></div>`;
+        const day = dayLabels[index] || '';
+        const caption = trendBarCaption(n);
+        return `<div class="fraud-trend__col">
+          <div class="fraud-trend__bar-wrap">
+            <div class="fraud-trend__bar" style="height:${h}%" title="${n} reports"></div>
+          </div>
+          <span class="fraud-trend__day">${escapeHtml(day)}</span>
+          <p class="fraud-trend__caption">${escapeHtml(caption)}</p>
+        </div>`;
       }).join('');
     }
 
@@ -2958,8 +3079,8 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     });
   }
 
-  function renderIocCards(iocs) {
-    if (!fraudDetailIocs) return;
+  function renderIocCardsInto(container, iocs) {
+    if (!container) return;
     const groups = [
       { key: 'domains', label: 'Domain' },
       { key: 'urls', label: 'URL' },
@@ -2981,11 +3102,11 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
       }
     }
 
-    fraudDetailIocs.innerHTML = cards.length
+    container.innerHTML = cards.length
       ? cards.join('')
       : '<p class="fraud-ops__empty">No IOCs extracted.</p>';
 
-    fraudDetailIocs.querySelectorAll('.fraud-ioc__copy').forEach((btn) => {
+    container.querySelectorAll('.fraud-ioc__copy').forEach((btn) => {
       btn.addEventListener('click', async () => {
         try {
           await navigator.clipboard.writeText(btn.dataset.copy || '');
@@ -2995,6 +3116,36 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
         }
       });
     });
+  }
+
+  function renderIocCards(iocs) {
+    renderIocCardsInto(fraudDetailIocs, iocs);
+  }
+
+  function countCampaignIocs(iocs) {
+    if (!iocs) return 0;
+    return ['domains', 'urls', 'emails', 'phones', 'ips', 'hashes']
+      .reduce((total, key) => total + (iocs[key]?.length || 0), 0);
+  }
+
+  function openCampaignIocModal() {
+    const campaign = (fraudCampaignsCache || []).find((c) => c.id === selectedCampaignId);
+    if (!campaign) {
+      showToast('Select a campaign first');
+      return;
+    }
+    const iocs = campaign.iocs || {};
+    if (!countCampaignIocs(iocs)) {
+      showToast('No IOCs extracted for this campaign yet');
+      return;
+    }
+    if (fraudCampIocModalTitle) fraudCampIocModalTitle.textContent = campaign.title || 'Campaign Indicators';
+    renderIocCardsInto(fraudCampIocModalGrid, iocs);
+    if (fraudCampIocModal) fraudCampIocModal.hidden = false;
+  }
+
+  function closeCampaignIocModal() {
+    if (fraudCampIocModal) fraudCampIocModal.hidden = true;
   }
 
   async function selectFraudCase(id) {
@@ -3450,6 +3601,18 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     });
   }
 
+  if (btnFraudCampIocs) {
+    btnFraudCampIocs.addEventListener('click', openCampaignIocModal);
+  }
+
+  if (btnFraudCampIocClose) {
+    btnFraudCampIocClose.addEventListener('click', closeCampaignIocModal);
+  }
+
+  if (fraudCampIocModalBackdrop) {
+    fraudCampIocModalBackdrop.addEventListener('click', closeCampaignIocModal);
+  }
+
   if (btnFraudAllRefresh) {
     btnFraudAllRefresh.addEventListener('click', async () => {
       await renderAllCasesPage();
@@ -3522,9 +3685,6 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
 
   if (btnAllBulk) {
     btnAllBulk.addEventListener('click', () => showToast('Select cases with checkboxes, then use View to update'));
-  }
-  if (btnAllPlaybook) {
-    btnAllPlaybook.addEventListener('click', () => showToast('Playbook builder coming soon'));
   }
 
   if (fraudSelectAll) {

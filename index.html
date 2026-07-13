@@ -382,10 +382,7 @@
               <button type="button" class="fraud-nav-item" data-fraud-nav="queue" data-fraud-filter-nav="Pending Review">
                 <span class="fraud-nav-item__icon" aria-hidden="true">▲</span> Escalated Cases
               </button>
-              <button type="button" class="fraud-nav-item" data-fraud-nav="analytics">
-                <span class="fraud-nav-item__icon" aria-hidden="true">◈</span> Indicators (IOCs)
-              </button>
-              <button type="button" class="fraud-nav-item" data-fraud-nav="actions">
+              <button type="button" class="fraud-nav-item" data-fraud-nav="playbooks">
                 <span class="fraud-nav-item__icon" aria-hidden="true">◇</span> Playbooks
               </button>
             </div>
@@ -497,8 +494,7 @@
                 <div class="fraud-quick-actions">
                   <button type="button" class="fraud-quick-btn" data-fraud-nav="queue">Bulk Update Cases</button>
                   <button type="button" class="fraud-quick-btn" id="btn-fraud-export">Export Report</button>
-                  <button type="button" class="fraud-quick-btn" data-fraud-nav="actions">Create Playbook</button>
-                  <button type="button" class="fraud-quick-btn" data-fraud-nav="analytics">Search IOCs</button>
+                  <button type="button" class="fraud-quick-btn" data-fraud-nav="playbooks">Open Playbooks</button>
                 </div>
               </section>
             </div>
@@ -776,10 +772,36 @@
                     <button type="button" class="fraud-quick-filter" id="btn-all-advanced-search">Advanced Search</button>
                     <button type="button" class="fraud-quick-filter" id="btn-all-export">Export Cases</button>
                     <button type="button" class="fraud-quick-filter" id="btn-all-bulk">Bulk Update</button>
-                    <button type="button" class="fraud-quick-filter" id="btn-all-playbook">Create Playbook</button>
+                    <button type="button" class="fraud-quick-filter" data-fraud-nav="playbooks">Open Playbooks</button>
                   </div>
                 </div>
               </aside>
+            </div>
+          </div>
+
+          <!-- PLAYBOOKS PAGE -->
+          <div class="fraud-ops__playbooks-page" id="fraud-view-playbooks" hidden>
+            <div class="fraud-page-head">
+              <div>
+                <h1 class="fraud-page-head__title">Fraud Response Playbooks</h1>
+                <p class="fraud-page-head__sub">Step-by-step operator guides for common Saudi banking fraud scenarios. Based on SAMA Cyber Security and Counter-Fraud Framework requirements.</p>
+              </div>
+            </div>
+
+            <div class="fraud-playbook-layout">
+              <aside class="fraud-playbook-list" aria-label="Playbook library">
+                <p class="fraud-playbook-list__label">Attack scenarios</p>
+                <ul id="fraud-playbook-list"></ul>
+                <p class="fraud-playbook-list__note">Sources: <a href="https://rulebook.sama.gov.sa" target="_blank" rel="noopener noreferrer">SAMA Rulebook</a> — CSF &amp; Counter-Fraud Framework.</p>
+              </aside>
+
+              <section class="fraud-playbook-detail" id="fraud-playbook-detail" aria-live="polite">
+                <div class="fraud-playbook-detail__empty" id="fraud-playbook-empty">
+                  <h2>Select a playbook</h2>
+                  <p>Choose an attack scenario to view phased operator actions from preparation through post-incident activity.</p>
+                </div>
+                <div class="fraud-playbook-detail__body" id="fraud-playbook-body" hidden></div>
+              </section>
             </div>
           </div>
 
@@ -883,7 +905,7 @@
                   <div class="fraud-camp-detail__charts">
                     <div class="fraud-camp-chart">
                       <h3>Reports Trend <span>(last 7 days)</span></h3>
-                      <div class="fraud-trend" id="fraud-camp-trend" aria-hidden="true"></div>
+                      <div class="fraud-trend" id="fraud-camp-trend" aria-label="Customer reports trend for the last 7 days"></div>
                     </div>
                     <div class="fraud-camp-chart">
                       <h3>Top Reporting Regions</h3>
@@ -1012,6 +1034,18 @@
             </div>
           </div>
         </aside>
+
+        <div class="fraud-camp-ioc-modal" id="fraud-camp-ioc-modal" hidden>
+          <div class="fraud-camp-ioc-modal__backdrop" id="fraud-camp-ioc-modal-backdrop"></div>
+          <div class="fraud-camp-ioc-modal__panel" role="dialog" aria-modal="true" aria-labelledby="fraud-camp-ioc-modal-title">
+            <div class="fraud-camp-ioc-modal__head">
+              <h2 id="fraud-camp-ioc-modal-title">Campaign Indicators</h2>
+              <button type="button" class="fraud-ops__drawer-close" id="btn-fraud-camp-ioc-close" aria-label="Close">×</button>
+            </div>
+            <p class="fraud-camp-ioc-modal__sub">All indicators of compromise linked to this campaign.</p>
+            <div class="fraud-ioc-grid" id="fraud-camp-ioc-modal-grid"></div>
+          </div>
+        </div>
       </div>
 
       <footer class="bs-dashboard-footer">
@@ -1158,6 +1192,7 @@
     <div class="modal__body" id="support-contacts"></div>
   </div>
 
-  <script src="app.js?v=17"></script>
+  <script src="playbooks-data.js?v=2"></script>
+  <script src="app.js?v=19"></script>
 </body>
 </html>

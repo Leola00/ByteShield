@@ -16,7 +16,7 @@ Return ONLY valid JSON with this exact shape:
   },
   "executiveInvestigationSummary": "Short executive summary for leadership (3-5 sentences)",
   "technicalInvestigationSummary": "Technical summary covering IOCs, attack pattern, and evidence (4-6 sentences)",
-  "customerNotificationDraft": "Professional customer notification draft the bank can send (English, polite, clear next steps)",
+  "customerNotificationDraft": "Professional customer notification draft Alinma Bank can send (English, polite, clear next steps). Sign as 'Alinma Bank'.",
   "managementSummary": "1 short paragraph for management on risk and recommended response",
   "investigationNotes": ["note 1", "note 2", "note 3", "note 4"]
 }
@@ -84,7 +84,7 @@ function buildLocalInvestigation(caseRecord) {
     customerNotificationDraft:
       `Dear Customer,\n\nThank you for reporting this suspicious message through ByteShield. ` +
       `Our Fraud Operations team is reviewing the case. Please do not click any links, share OTP codes, or provide account credentials. ` +
-      `If you already interacted with the message, contact official bank support immediately.\n\nRegards,\nFraud Operations`,
+      `If you already interacted with the message, contact official bank support immediately.\n\nBest regards,\nAlinma Bank`,
     managementSummary:
       `Fraud Ops received a customer report scored ${score}/100 (${category}). ` +
       `Recommended action pending analyst decision: ${action}.`,
