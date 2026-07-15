@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#0a1628" />
   <meta name="description" content="مصرف الإنماء – ByteShield: فحص ذكي للاحتيال والتصيد الاحتيالي" />
   <title>الإنماء | ByteShield</title>
-  <link rel="stylesheet" href="styles.css?v=17" />
+  <link rel="stylesheet" href="styles.css?v=20" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -107,72 +107,86 @@
   <div class="byteshield-panel" id="byteshield-panel" hidden>
     <!-- FRAUD OPS LOGIN GATE -->
     <div class="fraud-login" id="fraud-login" hidden>
-      <section class="fraud-login__brand" aria-label="ByteShield branding">
-        <div class="fraud-login__brand-inner">
-          <div class="fraud-login__logo" aria-hidden="true">
-            <svg viewBox="0 0 64 64" width="64" height="64" fill="none">
-              <path d="M32 6L52 14V30c0 14.5-8.8 27.2-20 31.5C20.8 57.2 12 44.5 12 30V14L32 6Z" fill="#7c3aed"/>
-              <path d="M32 18c-5.5 0-10 4.5-10 10v4.5c0 1.4.5 2.7 1.5 3.7l1.2 1.2V42a1.5 1.5 0 0 0 1.5 1.5h11.6a1.5 1.5 0 0 0 1.5-1.5v-4.6l1.2-1.2c1-.1 1.5-2.3 1.5-3.7V28c0-5.5-4.5-10-10-10Zm0 4.5a5.5 5.5 0 0 1 5.5 5.5v3.2a5.5 5.5 0 0 1-11 0V28a5.5 5.5 0 0 1 5.5-5.5Z" fill="#fff"/>
-            </svg>
-          </div>
-          <h1>ByteShield</h1>
-          <p class="fraud-login__product">Fraud Operation</p>
-          <div class="fraud-login__rule" aria-hidden="true"></div>
-          <p class="fraud-login__tagline">Detect. Investigate. Prevent.</p>
-          <p class="fraud-login__desc">Advanced fraud detection and case management to protect customers and your business.</p>
-        </div>
-        <div class="fraud-login__decor fraud-login__decor--tl" aria-hidden="true"></div>
-        <div class="fraud-login__decor fraud-login__decor--br" aria-hidden="true"></div>
-      </section>
-
       <section class="fraud-login__form-wrap">
         <form class="fraud-login__card" id="fraud-login-form" autocomplete="on">
           <div class="fraud-login__card-icon" aria-hidden="true">
-            <svg viewBox="0 0 40 40" width="40" height="40" fill="none">
-              <path d="M20 4L32 9V19c0 9-5.5 16.8-12 19.5C13.5 35.8 8 28 8 19V9L20 4Z" fill="#7c3aed"/>
-              <circle cx="20" cy="17" r="4" fill="#fff"/>
-              <path d="M13 28c1.8-3.2 4.2-4.8 7-4.8s5.2 1.6 7 4.8" stroke="#fff" stroke-width="2" stroke-linecap="round"/>
+            <svg viewBox="0 0 48 48" width="48" height="48" fill="none">
+              <rect width="48" height="48" rx="12" fill="#C59473"/>
+              <path d="M24 10L36 15.5V26c0 8.2-5.2 15.4-12 18-6.8-2.6-12-9.8-12-18V15.5L24 10Z" fill="#1A2536"/>
+              <circle cx="24" cy="22" r="4" fill="#F7F3EE"/>
+              <path d="M16.5 33c1.8-3.4 4.4-5 7.5-5s5.7 1.6 7.5 5" stroke="#F7F3EE" stroke-width="2.2" stroke-linecap="round"/>
             </svg>
           </div>
           <h2>Welcome back</h2>
-          <p class="fraud-login__card-sub">Please sign in to continue to ByteShield Fraud Operation.</p>
+          <p class="fraud-login__card-sub">Sign in to continue to <span>ByteShield</span> Fraud Operations.</p>
 
-          <label class="fraud-login__label" for="fraud-login-user">Username or Email</label>
+          <label class="fraud-login__label" for="fraud-login-user">Email or Username</label>
           <div class="fraud-login__field">
-            <span class="fraud-login__field-icon" aria-hidden="true">👤</span>
-            <input type="text" id="fraud-login-user" name="username" placeholder="Enter your username or email" required autocomplete="username" />
+            <span class="fraud-login__field-icon" aria-hidden="true">
+              <svg viewBox="0 0 20 20" width="18" height="18" fill="none"><circle cx="10" cy="7" r="3.2" stroke="#8A94A6" stroke-width="1.5"/><path d="M4.5 16.5c1.2-2.8 3.2-4.2 5.5-4.2s4.3 1.4 5.5 4.2" stroke="#8A94A6" stroke-width="1.5" stroke-linecap="round"/></svg>
+            </span>
+            <input type="text" id="fraud-login-user" name="username" placeholder="Enter your email or username" required autocomplete="username" />
           </div>
 
           <label class="fraud-login__label" for="fraud-login-pass">Password</label>
           <div class="fraud-login__field">
-            <span class="fraud-login__field-icon" aria-hidden="true">🔒</span>
+            <span class="fraud-login__field-icon" aria-hidden="true">
+              <svg viewBox="0 0 20 20" width="18" height="18" fill="none"><rect x="4.5" y="9" width="11" height="8" rx="2" stroke="#8A94A6" stroke-width="1.5"/><path d="M7 9V7a3 3 0 0 1 6 0v2" stroke="#8A94A6" stroke-width="1.5" stroke-linecap="round"/></svg>
+            </span>
             <input type="password" id="fraud-login-pass" name="password" placeholder="Enter your password" required autocomplete="current-password" />
-            <button type="button" class="fraud-login__eye" id="fraud-login-toggle-pass" aria-label="Show password">👁</button>
+            <button type="button" class="fraud-login__eye" id="fraud-login-toggle-pass" aria-label="Show password">
+              <svg viewBox="0 0 20 20" width="18" height="18" fill="none" aria-hidden="true"><path d="M2 10s2.8-5 8-5 8 5 8 5-2.8 5-8 5-8-5-8-5Z" stroke="#8A94A6" stroke-width="1.5"/><circle cx="10" cy="10" r="2.2" stroke="#8A94A6" stroke-width="1.5"/></svg>
+            </button>
           </div>
 
           <div class="fraud-login__row">
-            <label class="fraud-login__remember">
-              <input type="checkbox" id="fraud-login-remember" />
-              Remember me
-            </label>
             <button type="button" class="fraud-login__forgot" id="fraud-login-forgot">Forgot password?</button>
+            <label class="fraud-login__remember">
+              Remember me
+              <input type="checkbox" id="fraud-login-remember" />
+            </label>
           </div>
 
           <p class="fraud-login__error" id="fraud-login-error" hidden>Please enter your username and password.</p>
 
-          <button type="submit" class="fraud-login__submit" id="fraud-login-submit">Sign In</button>
+          <button type="submit" class="fraud-login__submit" id="fraud-login-submit">
+            Sign In
+            <span aria-hidden="true">→</span>
+          </button>
 
           <div class="fraud-login__or"><span>or</span></div>
 
           <button type="button" class="fraud-login__sso" id="fraud-login-sso">
-            <span aria-hidden="true">🛡</span> Sign in with SSO
+            <svg viewBox="0 0 20 20" width="18" height="18" fill="none" aria-hidden="true"><path d="M10 2.5L16.5 5.5V10.5c0 4.4-2.9 8.2-6.5 9.5C6.4 18.7 3.5 14.9 3.5 10.5V5.5L10 2.5Z" stroke="#1A2536" stroke-width="1.5" fill="none"/></svg>
+            Sign in with SSO
           </button>
         </form>
 
         <p class="fraud-login__secure">
-          <span aria-hidden="true">✓</span>
-          ByteShield Fraud Operation is secure and monitored 24/7
+          <svg class="fraud-login__secure-shield" viewBox="0 0 16 16" width="14" height="14" fill="none" aria-hidden="true"><path d="M8 1.5L13 3.5V7.5c0 3.3-2.2 6.2-5 7.2C5.2 13.7 3 10.8 3 7.5V3.5L8 1.5Z" fill="#1A2536"/></svg>
+          ByteShield Fraud Operations is secure and monitored 24/7
+          <span class="fraud-login__secure-check" aria-hidden="true">✓</span>
         </p>
+      </section>
+
+      <section class="fraud-login__brand" aria-label="ByteShield branding">
+        <div class="fraud-login__brand-bg" aria-hidden="true">
+          <div class="fraud-login__rings"></div>
+          <div class="fraud-login__mesh"></div>
+        </div>
+        <div class="fraud-login__brand-inner">
+          <div class="fraud-login__logo" aria-hidden="true">
+            <svg viewBox="0 0 72 72" width="72" height="72" fill="none">
+              <path d="M36 6L58 15V33c0 16.5-10 29.5-22 34C24 62.5 14 49.5 14 33V15L36 6Z" fill="#1A2536"/>
+              <text x="36" y="42" text-anchor="middle" fill="#F7F3EE" font-size="26" font-family="Segoe UI, Arial, sans-serif" font-weight="700">B</text>
+            </svg>
+          </div>
+          <h1>ByteShield</h1>
+          <p class="fraud-login__product">Fraud Operations</p>
+          <div class="fraud-login__rule" aria-hidden="true"></div>
+          <p class="fraud-login__tagline">Detect. Investigate. Prevent.</p>
+          <p class="fraud-login__desc">Advanced fraud detection and case management to protect customers and your business.</p>
+        </div>
       </section>
     </div>
 
@@ -379,19 +393,13 @@
               <button type="button" class="fraud-nav-item" data-fraud-nav="queue" data-fraud-filter-nav="Under Review">
                 <span class="fraud-nav-item__icon" aria-hidden="true">◉</span> My Reviews
               </button>
-              <button type="button" class="fraud-nav-item" data-fraud-nav="queue" data-fraud-filter-nav="Pending Review">
-                <span class="fraud-nav-item__icon" aria-hidden="true">▲</span> Escalated Cases
-              </button>
               <button type="button" class="fraud-nav-item" data-fraud-nav="playbooks">
                 <span class="fraud-nav-item__icon" aria-hidden="true">◇</span> Playbooks
               </button>
             </div>
             <div class="fraud-ops__nav-group">
               <p class="fraud-ops__nav-label">Communication</p>
-              <button type="button" class="fraud-nav-item" data-fraud-nav="actions">
-                <span class="fraud-nav-item__icon" aria-hidden="true">✉</span> Customer Notifications
-              </button>
-              <button type="button" class="fraud-nav-item" data-fraud-nav="actions">
+              <button type="button" class="fraud-nav-item" data-fraud-nav="notes">
                 <span class="fraud-nav-item__icon" aria-hidden="true">✎</span> Internal Notes
               </button>
             </div>
@@ -404,8 +412,8 @@
           </div>
 
           <div class="fraud-ops__nav-foot">
-            <button type="button" class="fraud-nav-item" id="btn-fraud-refresh">
-              <span class="fraud-nav-item__icon" aria-hidden="true">↻</span> Refresh / Settings
+            <button type="button" class="fraud-nav-item" id="btn-fraud-settings">
+              <span class="fraud-nav-item__icon" aria-hidden="true">⚙</span> Settings
             </button>
             <button type="button" class="fraud-nav-item" id="btn-fraud-logout">
               <span class="fraud-nav-item__icon" aria-hidden="true">⏻</span> Log out
@@ -427,11 +435,11 @@
                 <span aria-hidden="true">🔔</span>
                 <span class="fraud-ops__bell-badge" id="fraud-alert-badge">0</span>
               </button>
-              <div class="fraud-ops__analyst">
-                <span class="fraud-ops__avatar" aria-hidden="true">A</span>
+              <div class="fraud-ops__analyst" id="fraud-ops-analyst" role="button" tabindex="0" title="Open settings">
+                <span class="fraud-ops__avatar" id="fraud-ops-avatar" aria-hidden="true">A</span>
                 <div>
-                  <strong>Analyst</strong>
-                  <span>Fraud Team</span>
+                  <strong id="fraud-ops-analyst-name">Analyst</strong>
+                  <span id="fraud-ops-analyst-team">Fraud Team</span>
                 </div>
               </div>
             </div>
@@ -629,7 +637,6 @@
                   <div class="fraud-quick-filters">
                     <button type="button" class="fraud-quick-filter" data-fraud-quick="high">High Risk Cases</button>
                     <button type="button" class="fraud-quick-filter" data-fraud-quick="review">My Reviews</button>
-                    <button type="button" class="fraud-quick-filter" data-fraud-quick="pending">Escalated Cases</button>
                     <button type="button" class="fraud-quick-filter" data-fraud-quick="all">Unassigned</button>
                   </div>
                 </div>
@@ -644,7 +651,7 @@
                 <h1 class="fraud-page-head__title">All Cases</h1>
                 <p class="fraud-page-head__sub">View and manage all fraud cases across all statuses.</p>
               </div>
-              <button type="button" class="fraud-page-head__refresh" id="btn-fraud-all-refresh">Refresh</button>
+              <button type="button" class="fraud-page-head__refresh" id="btn-fraud-all-refresh" hidden>Refresh</button>
             </div>
 
             <div class="fraud-ops__kpis fraud-ops__kpis--all">
@@ -805,6 +812,94 @@
             </div>
           </div>
 
+          <!-- INTERNAL NOTES PAGE -->
+          <div class="fraud-ops__notes-page" id="fraud-view-notes" hidden>
+            <div class="fraud-page-head">
+              <div>
+                <h1 class="fraud-page-head__title">Internal Notes</h1>
+                <p class="fraud-page-head__sub">Create, manage, and collaborate on internal notes related to fraud cases.</p>
+              </div>
+              <button type="button" class="fraud-page-head__back" id="btn-notes-new">+ New Note</button>
+            </div>
+
+            <div class="fraud-ops__kpis fraud-ops__kpis--notes">
+              <article class="fraud-kpi fraud-notes-kpi">
+                <span class="fraud-notes-kpi__icon" aria-hidden="true">📄</span>
+                <div>
+                  <span>Total Notes</span>
+                  <strong id="notes-kpi-total">0</strong>
+                  <em>All time</em>
+                </div>
+              </article>
+              <article class="fraud-kpi fraud-notes-kpi">
+                <span class="fraud-notes-kpi__icon" aria-hidden="true">👤</span>
+                <div>
+                  <span>My Notes</span>
+                  <strong id="notes-kpi-mine">0</strong>
+                  <em>Created by me</em>
+                </div>
+              </article>
+              <article class="fraud-kpi fraud-notes-kpi">
+                <span class="fraud-notes-kpi__icon" aria-hidden="true">📌</span>
+                <div>
+                  <span>Pinned Notes</span>
+                  <strong id="notes-kpi-pinned">0</strong>
+                  <em>Important notes</em>
+                </div>
+              </article>
+              <article class="fraud-kpi fraud-notes-kpi">
+                <span class="fraud-notes-kpi__icon" aria-hidden="true">🕒</span>
+                <div>
+                  <span>Recent Activity</span>
+                  <strong id="notes-kpi-recent">0</strong>
+                  <em>In last 7 days</em>
+                </div>
+              </article>
+            </div>
+
+            <div class="fraud-notes-toolbar">
+              <input type="search" id="fraud-notes-search" class="fraud-ops__search-input fraud-notes-toolbar__search" placeholder="Search notes by title, content, or case ID..." autocomplete="off" />
+              <select id="fraud-notes-case" class="fraud-ops__select" aria-label="Filter by case">
+                <option value="all">All Cases</option>
+              </select>
+              <select id="fraud-notes-author" class="fraud-ops__select" aria-label="Filter by author">
+                <option value="all">All Authors</option>
+              </select>
+              <select id="fraud-notes-category" class="fraud-ops__select" aria-label="Filter by category">
+                <option value="all">All Categories</option>
+                <option value="Investigation">Investigation</option>
+                <option value="Escalation">Escalation</option>
+                <option value="IOC">IOC</option>
+                <option value="Customer">Customer</option>
+              </select>
+              <select id="fraud-notes-priority" class="fraud-ops__select" aria-label="Filter by priority">
+                <option value="all">All Priorities</option>
+                <option value="High">High</option>
+                <option value="Medium">Medium</option>
+                <option value="Low">Low</option>
+              </select>
+              <button type="button" class="fraud-filter-btn" id="btn-notes-filters" aria-label="More filters">Filters</button>
+            </div>
+
+            <div class="fraud-notes-layout">
+              <section class="fraud-notes-list-panel" aria-label="Notes list">
+                <div class="fraud-notes-list-panel__head">
+                  <h2 id="fraud-notes-list-title">All Notes (0)</h2>
+                </div>
+                <ul class="fraud-notes-list" id="fraud-notes-list"></ul>
+                <div class="fraud-notes-pager" id="fraud-notes-pager"></div>
+              </section>
+
+              <section class="fraud-notes-detail" id="fraud-notes-detail" aria-live="polite">
+                <div class="fraud-notes-detail__empty" id="fraud-notes-empty">
+                  <h2>Select a note</h2>
+                  <p>Choose a note from the list to view details, comments, and attachments.</p>
+                </div>
+                <div class="fraud-notes-detail__body" id="fraud-notes-body" hidden></div>
+              </section>
+            </div>
+          </div>
+
           <!-- ACTIVE CAMPAIGNS PAGE -->
           <div class="fraud-ops__campaigns-page" id="fraud-view-campaigns" hidden>
             <div class="fraud-page-head">
@@ -815,7 +910,7 @@
                 </h1>
                 <p class="fraud-page-head__sub">Monitor and manage ongoing fraud campaigns detected from customer reports.</p>
               </div>
-              <button type="button" class="fraud-page-head__refresh" id="btn-fraud-campaigns-refresh">Refresh</button>
+              <button type="button" class="fraud-page-head__refresh" id="btn-fraud-campaigns-refresh" hidden>Refresh</button>
             </div>
 
             <div class="fraud-ops__kpis fraud-ops__kpis--campaigns">
@@ -1046,6 +1141,216 @@
             <div class="fraud-ioc-grid" id="fraud-camp-ioc-modal-grid"></div>
           </div>
         </div>
+
+        <!-- SETTINGS MODAL -->
+        <div class="fraud-settings-modal" id="fraud-settings-modal" hidden>
+          <div class="fraud-settings-modal__backdrop" id="fraud-settings-backdrop"></div>
+          <div class="fraud-settings-modal__panel" role="dialog" aria-modal="true" aria-labelledby="fraud-settings-title">
+            <div class="fraud-settings-modal__head">
+              <div>
+                <h2 id="fraud-settings-title">Settings</h2>
+                <p class="fraud-settings-modal__sub">Manage your personal information and account preferences.</p>
+              </div>
+              <button type="button" class="fraud-ops__drawer-close" id="btn-fraud-settings-close" aria-label="Close settings">×</button>
+            </div>
+
+            <div class="fraud-settings-modal__body">
+              <nav class="fraud-settings-nav" aria-label="Settings sections">
+                <button type="button" class="fraud-settings-nav__item fraud-settings-nav__item--active" data-settings-tab="profile">
+                  <span aria-hidden="true">👤</span> Profile Information
+                </button>
+                <button type="button" class="fraud-settings-nav__item" data-settings-tab="security">
+                  <span aria-hidden="true">🔒</span> Password &amp; Security
+                </button>
+                <button type="button" class="fraud-settings-nav__item" data-settings-tab="notifications">
+                  <span aria-hidden="true">🔔</span> Notifications
+                </button>
+                <button type="button" class="fraud-settings-nav__item" data-settings-tab="appearance">
+                  <span aria-hidden="true">🎨</span> Appearance
+                </button>
+                <button type="button" class="fraud-settings-nav__item" data-settings-tab="language">
+                  <span aria-hidden="true">🌐</span> Language &amp; Region
+                </button>
+                <button type="button" class="fraud-settings-nav__item" data-settings-tab="sessions">
+                  <span aria-hidden="true">💻</span> Sessions
+                </button>
+              </nav>
+
+              <div class="fraud-settings-content">
+                <!-- Profile -->
+                <section class="fraud-settings-pane" id="settings-pane-profile" data-settings-pane="profile">
+                  <h3>Profile Information</h3>
+                  <p class="fraud-settings-pane__sub">Update your personal details and how others see you in Fraud Ops.</p>
+
+                  <div class="fraud-settings-photo">
+                    <div class="fraud-settings-photo__avatar" id="settings-photo-avatar">A</div>
+                    <div class="fraud-settings-photo__actions">
+                      <button type="button" class="fraud-settings-link" id="btn-settings-change-photo">Change Photo</button>
+                      <button type="button" class="fraud-settings-link fraud-settings-link--muted" id="btn-settings-remove-photo">Remove</button>
+                    </div>
+                  </div>
+
+                  <form id="fraud-settings-profile-form" class="fraud-settings-form">
+                    <label class="fraud-settings-field">
+                      <span>Full Name</span>
+                      <input type="text" id="settings-full-name" name="fullName" autocomplete="name" />
+                    </label>
+                    <label class="fraud-settings-field">
+                      <span>Email Address</span>
+                      <input type="email" id="settings-email" name="email" autocomplete="email" />
+                    </label>
+                    <div class="fraud-settings-field-row">
+                      <label class="fraud-settings-field">
+                        <span>Role</span>
+                        <select id="settings-role" name="role">
+                          <option value="Fraud Analyst">Fraud Analyst</option>
+                          <option value="Senior Analyst">Senior Analyst</option>
+                          <option value="Team Lead">Team Lead</option>
+                          <option value="Investigator">Investigator</option>
+                        </select>
+                      </label>
+                      <label class="fraud-settings-field">
+                        <span>Team</span>
+                        <select id="settings-team" name="team">
+                          <option value="Fraud Team">Fraud Team</option>
+                          <option value="SOC">SOC</option>
+                          <option value="Digital Channels">Digital Channels</option>
+                          <option value="Investigations">Investigations</option>
+                        </select>
+                      </label>
+                    </div>
+                    <div class="fraud-settings-field">
+                      <span>Phone Number <em>(Optional)</em></span>
+                      <div class="fraud-settings-phone">
+                        <select id="settings-phone-code" aria-label="Country code">
+                          <option value="+966">+966</option>
+                          <option value="+971">+971</option>
+                          <option value="+973">+973</option>
+                          <option value="+965">+965</option>
+                        </select>
+                        <input type="tel" id="settings-phone" name="phone" placeholder="5X XXX XXXX" autocomplete="tel-national" />
+                      </div>
+                    </div>
+                    <label class="fraud-settings-field">
+                      <span>Bio <em>(Optional)</em></span>
+                      <textarea id="settings-bio" name="bio" rows="3" maxlength="160" placeholder="Short bio for your team…"></textarea>
+                      <span class="fraud-settings-counter"><span id="settings-bio-count">0</span>/160</span>
+                    </label>
+                  </form>
+                </section>
+
+                <!-- Security -->
+                <section class="fraud-settings-pane" id="settings-pane-security" data-settings-pane="security" hidden>
+                  <h3>Password &amp; Security</h3>
+                  <p class="fraud-settings-pane__sub">Protect your account with a strong password and session controls.</p>
+                  <form id="fraud-settings-security-form" class="fraud-settings-form">
+                    <label class="fraud-settings-field">
+                      <span>Current Password</span>
+                      <input type="password" id="settings-current-pass" autocomplete="current-password" />
+                    </label>
+                    <label class="fraud-settings-field">
+                      <span>New Password</span>
+                      <input type="password" id="settings-new-pass" autocomplete="new-password" />
+                    </label>
+                    <label class="fraud-settings-field">
+                      <span>Confirm New Password</span>
+                      <input type="password" id="settings-confirm-pass" autocomplete="new-password" />
+                    </label>
+                    <label class="fraud-settings-check">
+                      <input type="checkbox" id="settings-2fa" />
+                      <span>Enable two-factor authentication (recommended)</span>
+                    </label>
+                  </form>
+                </section>
+
+                <!-- Notifications -->
+                <section class="fraud-settings-pane" id="settings-pane-notifications" data-settings-pane="notifications" hidden>
+                  <h3>Notifications</h3>
+                  <p class="fraud-settings-pane__sub">Choose which Fraud Ops alerts you receive.</p>
+                  <div class="fraud-settings-form">
+                    <label class="fraud-settings-check"><input type="checkbox" id="settings-notif-high" checked /> <span>High-risk case alerts</span></label>
+                    <label class="fraud-settings-check"><input type="checkbox" id="settings-notif-assign" checked /> <span>Case assignment notifications</span></label>
+                    <label class="fraud-settings-check"><input type="checkbox" id="settings-notif-campaign" checked /> <span>New campaign detections</span></label>
+                    <label class="fraud-settings-check"><input type="checkbox" id="settings-notif-email" /> <span>Email digest (daily)</span></label>
+                  </div>
+                </section>
+
+                <!-- Appearance -->
+                <section class="fraud-settings-pane" id="settings-pane-appearance" data-settings-pane="appearance" hidden>
+                  <h3>Appearance</h3>
+                  <p class="fraud-settings-pane__sub">Adjust how Fraud Ops looks on your workstation.</p>
+                  <div class="fraud-settings-form">
+                    <label class="fraud-settings-field">
+                      <span>Theme</span>
+                      <select id="settings-theme">
+                        <option value="light">Light</option>
+                        <option value="dark">Dark (coming soon)</option>
+                        <option value="system">Match system</option>
+                      </select>
+                    </label>
+                    <label class="fraud-settings-field">
+                      <span>Density</span>
+                      <select id="settings-density">
+                        <option value="comfortable">Comfortable</option>
+                        <option value="compact">Compact</option>
+                      </select>
+                    </label>
+                  </div>
+                </section>
+
+                <!-- Language -->
+                <section class="fraud-settings-pane" id="settings-pane-language" data-settings-pane="language" hidden>
+                  <h3>Language &amp; Region</h3>
+                  <p class="fraud-settings-pane__sub">Set your preferred language and regional formats.</p>
+                  <div class="fraud-settings-form">
+                    <label class="fraud-settings-field">
+                      <span>Language</span>
+                      <select id="settings-language">
+                        <option value="en">English</option>
+                        <option value="ar">العربية</option>
+                      </select>
+                    </label>
+                    <label class="fraud-settings-field">
+                      <span>Timezone</span>
+                      <select id="settings-timezone">
+                        <option value="Asia/Riyadh">Asia/Riyadh (GMT+3)</option>
+                        <option value="Asia/Dubai">Asia/Dubai (GMT+4)</option>
+                        <option value="UTC">UTC</option>
+                      </select>
+                    </label>
+                  </div>
+                </section>
+
+                <!-- Sessions -->
+                <section class="fraud-settings-pane" id="settings-pane-sessions" data-settings-pane="sessions" hidden>
+                  <h3>Sessions</h3>
+                  <p class="fraud-settings-pane__sub">Devices currently signed in to Fraud Ops.</p>
+                  <ul class="fraud-settings-sessions">
+                    <li>
+                      <div>
+                        <strong>This browser</strong>
+                        <span>Windows · Active now</span>
+                      </div>
+                      <em class="fraud-settings-sessions__current">Current</em>
+                    </li>
+                    <li>
+                      <div>
+                        <strong>Alinma workstation</strong>
+                        <span>Chrome · Last active 2 days ago</span>
+                      </div>
+                      <button type="button" class="fraud-settings-link fraud-settings-link--danger" id="btn-settings-revoke-other">Revoke</button>
+                    </li>
+                  </ul>
+                </section>
+              </div>
+            </div>
+
+            <div class="fraud-settings-modal__foot">
+              <button type="button" class="fraud-settings-btn fraud-settings-btn--ghost" id="btn-fraud-settings-cancel">Cancel</button>
+              <button type="button" class="fraud-settings-btn fraud-settings-btn--primary" id="btn-fraud-settings-save">Save Changes</button>
+            </div>
+          </div>
+        </div>
       </div>
 
       <footer class="bs-dashboard-footer">
@@ -1192,7 +1497,11 @@
     <div class="modal__body" id="support-contacts"></div>
   </div>
 
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <script src="/js/supabase-env.js"></script>
+  <script src="js/supabase-config.js?v=2"></script>
+  <script src="js/fraud-ops-live.js?v=1"></script>
   <script src="playbooks-data.js?v=2"></script>
-  <script src="app.js?v=19"></script>
+  <script src="app.js?v=26"></script>
 </body>
 </html>

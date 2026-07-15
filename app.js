@@ -504,9 +504,26 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
   const fraudViewCampaigns = document.getElementById('fraud-view-campaigns');
   const fraudViewAll = document.getElementById('fraud-view-all');
   const fraudViewPlaybooks = document.getElementById('fraud-view-playbooks');
+  const fraudViewNotes = document.getElementById('fraud-view-notes');
   const fraudPlaybookList = document.getElementById('fraud-playbook-list');
   const fraudPlaybookEmpty = document.getElementById('fraud-playbook-empty');
   const fraudPlaybookBody = document.getElementById('fraud-playbook-body');
+  const fraudNotesList = document.getElementById('fraud-notes-list');
+  const fraudNotesEmpty = document.getElementById('fraud-notes-empty');
+  const fraudNotesBody = document.getElementById('fraud-notes-body');
+  const fraudNotesListTitle = document.getElementById('fraud-notes-list-title');
+  const fraudNotesSearch = document.getElementById('fraud-notes-search');
+  const fraudNotesCase = document.getElementById('fraud-notes-case');
+  const fraudNotesAuthor = document.getElementById('fraud-notes-author');
+  const fraudNotesCategory = document.getElementById('fraud-notes-category');
+  const fraudNotesPriority = document.getElementById('fraud-notes-priority');
+  const fraudNotesPager = document.getElementById('fraud-notes-pager');
+  const notesKpiTotal = document.getElementById('notes-kpi-total');
+  const notesKpiMine = document.getElementById('notes-kpi-mine');
+  const notesKpiPinned = document.getElementById('notes-kpi-pinned');
+  const notesKpiRecent = document.getElementById('notes-kpi-recent');
+  const btnNotesNew = document.getElementById('btn-notes-new');
+  const btnNotesFilters = document.getElementById('btn-notes-filters');
   const fraudQueuePageBadge = document.getElementById('fraud-queue-page-badge');
   const fraudCampaignsPageBadge = document.getElementById('fraud-campaigns-page-badge');
   const fraudStatusFilter = document.getElementById('fraud-status-filter');
@@ -618,7 +635,46 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
   const fraudModifyPanel = document.getElementById('fraud-modify-panel');
   const fraudModifyAction = document.getElementById('fraud-modify-action');
   const fraudModifyNote = document.getElementById('fraud-modify-note');
-  const btnFraudRefresh = document.getElementById('btn-fraud-refresh');
+  const btnFraudSettings = document.getElementById('btn-fraud-settings');
+  const fraudSettingsModal = document.getElementById('fraud-settings-modal');
+  const fraudSettingsBackdrop = document.getElementById('fraud-settings-backdrop');
+  const btnFraudSettingsClose = document.getElementById('btn-fraud-settings-close');
+  const btnFraudSettingsCancel = document.getElementById('btn-fraud-settings-cancel');
+  const btnFraudSettingsSave = document.getElementById('btn-fraud-settings-save');
+  const fraudOpsAnalyst = document.getElementById('fraud-ops-analyst');
+  const fraudOpsAvatar = document.getElementById('fraud-ops-avatar');
+  const fraudOpsAnalystName = document.getElementById('fraud-ops-analyst-name');
+  const fraudOpsAnalystTeam = document.getElementById('fraud-ops-analyst-team');
+  const settingsPhotoAvatar = document.getElementById('settings-photo-avatar');
+  const settingsFullName = document.getElementById('settings-full-name');
+  const settingsEmail = document.getElementById('settings-email');
+  const settingsRole = document.getElementById('settings-role');
+  const settingsTeam = document.getElementById('settings-team');
+  const settingsPhoneCode = document.getElementById('settings-phone-code');
+  const settingsPhone = document.getElementById('settings-phone');
+  const settingsBio = document.getElementById('settings-bio');
+  const settingsBioCount = document.getElementById('settings-bio-count');
+  const FRAUD_SETTINGS_KEY = 'byteshield_fraud_settings';
+  const DEFAULT_FRAUD_SETTINGS = {
+    fullName: 'Analyst',
+    email: 'analyst@alinma.com',
+    role: 'Fraud Analyst',
+    team: 'Fraud Team',
+    phoneCode: '+966',
+    phone: '',
+    bio: '',
+    theme: 'light',
+    density: 'comfortable',
+    language: 'en',
+    timezone: 'Asia/Riyadh',
+    notifHigh: true,
+    notifAssign: true,
+    notifCampaign: true,
+    notifEmail: false,
+    twoFactor: false
+  };
+  let fraudSettings = { ...DEFAULT_FRAUD_SETTINGS };
+  let fraudCasesPollTimer = null;
   const btnFraudApprove = document.getElementById('btn-fraud-approve');
   const btnFraudModify = document.getElementById('btn-fraud-modify');
   const btnFraudReject = document.getElementById('btn-fraud-reject');
@@ -644,6 +700,18 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
   let campaignSearchQuery = '';
   let campaignSort = 'newest';
   let selectedPlaybookId = null;
+  let selectedNoteId = null;
+  let notesSearchQuery = '';
+  let notesCaseFilter = 'all';
+  let notesAuthorFilter = 'all';
+  let notesCategoryFilter = 'all';
+  let notesPriorityFilter = 'all';
+  let notesPage = 1;
+  const NOTES_PER_PAGE = 8;
+  let liveNotesCache = [];
+  const CURRENT_ANALYST = 'Analyst';
+  // Legacy sample kept only as empty fallback when API unavailable
+  const INTERNAL_NOTES = [];
   let allCasesCache = [];
   let allSearchQuery = '';
   let allStatus = 'all';
@@ -654,9 +722,25 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
   let fraudOpsAuthenticated = false;
   const FRAUD_AUTH_KEY = 'byteshield_fraud_ops_auth';
 
+  function hasValidFraudSession() {
+    try {
+      if (typeof FraudOpsLive !== 'undefined') {
+        const sess = FraudOpsLive.loadSession();
+        if (sess?.analyst?.id || sess?.analyst?.email) return true;
+        // Stale flag from before Supabase Auth — clear it so login shows
+        sessionStorage.removeItem(FRAUD_AUTH_KEY);
+        localStorage.removeItem(FRAUD_AUTH_KEY);
+        return false;
+      }
+      return sessionStorage.getItem(FRAUD_AUTH_KEY) === '1'
+        || localStorage.getItem(FRAUD_AUTH_KEY) === '1';
+    } catch {
+      return false;
+    }
+  }
+
   try {
-    fraudOpsAuthenticated = sessionStorage.getItem(FRAUD_AUTH_KEY) === '1'
-      || localStorage.getItem(FRAUD_AUTH_KEY) === '1';
+    fraudOpsAuthenticated = hasValidFraudSession();
   } catch {
     fraudOpsAuthenticated = false;
   }
@@ -686,6 +770,7 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
       } else {
         sessionStorage.removeItem(FRAUD_AUTH_KEY);
         localStorage.removeItem(FRAUD_AUTH_KEY);
+        if (typeof FraudOpsLive !== 'undefined') FraudOpsLive.clearSession();
       }
     } catch {
       /* ignore storage errors */
@@ -706,7 +791,157 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
   function enterFraudOpsDashboard() {
     hideFraudLogin();
     if (fraudOps) fraudOps.hidden = false;
+    applyLiveAnalystToUi();
+    applyFraudSettingsToUi();
     renderFraudOpsDashboard();
+    startFraudCasesAutoRefresh();
+    if (typeof FraudOpsLive !== 'undefined') {
+      FraudOpsLive.startRealtime(() => {
+        renderFraudOpsDashboard();
+        if (fraudView === 'notes') renderNotesPage();
+      });
+    }
+  }
+
+  function applyLiveAnalystToUi() {
+    const analyst =
+      (typeof FraudOpsLive !== 'undefined' && FraudOpsLive.currentAnalyst()) ||
+      null;
+    if (!analyst) return;
+    fraudSettings.fullName = analyst.fullName || fraudSettings.fullName;
+    fraudSettings.email = analyst.email || fraudSettings.email;
+    fraudSettings.role = analyst.role || fraudSettings.role;
+    fraudSettings.team = analyst.team || fraudSettings.team;
+    fraudSettings.phone = analyst.phone || fraudSettings.phone;
+    fraudSettings.phoneCode = analyst.phoneCode || fraudSettings.phoneCode;
+    fraudSettings.bio = analyst.bio || fraudSettings.bio;
+    if (analyst.avatar && fraudOpsAvatar) {
+      fraudOpsAvatar.style.backgroundImage = `url(${analyst.avatar})`;
+      fraudOpsAvatar.style.backgroundSize = 'cover';
+      fraudOpsAvatar.textContent = '';
+    }
+  }
+
+  function loadFraudSettings() {
+    try {
+      const raw = localStorage.getItem(FRAUD_SETTINGS_KEY);
+      if (raw) fraudSettings = { ...DEFAULT_FRAUD_SETTINGS, ...JSON.parse(raw) };
+    } catch {
+      fraudSettings = { ...DEFAULT_FRAUD_SETTINGS };
+    }
+  }
+
+  function saveFraudSettings() {
+    try {
+      localStorage.setItem(FRAUD_SETTINGS_KEY, JSON.stringify(fraudSettings));
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function getSettingsInitials(name) {
+    const parts = String(name || 'A').trim().split(/\s+/).filter(Boolean);
+    if (!parts.length) return 'A';
+    return parts.slice(0, 2).map((p) => p[0].toUpperCase()).join('');
+  }
+
+  function applyFraudSettingsToUi() {
+    const name = fraudSettings.fullName || 'Analyst';
+    const team = fraudSettings.team || 'Fraud Team';
+    const initials = getSettingsInitials(name);
+    if (fraudOpsAnalystName) fraudOpsAnalystName.textContent = name;
+    if (fraudOpsAnalystTeam) fraudOpsAnalystTeam.textContent = team;
+    if (fraudOpsAvatar) fraudOpsAvatar.textContent = initials;
+    if (settingsPhotoAvatar) settingsPhotoAvatar.textContent = initials;
+  }
+
+  function fillSettingsForm() {
+    if (settingsFullName) settingsFullName.value = fraudSettings.fullName || '';
+    if (settingsEmail) settingsEmail.value = fraudSettings.email || '';
+    if (settingsRole) settingsRole.value = fraudSettings.role || 'Fraud Analyst';
+    if (settingsTeam) settingsTeam.value = fraudSettings.team || 'Fraud Team';
+    if (settingsPhoneCode) settingsPhoneCode.value = fraudSettings.phoneCode || '+966';
+    if (settingsPhone) settingsPhone.value = fraudSettings.phone || '';
+    if (settingsBio) {
+      settingsBio.value = fraudSettings.bio || '';
+      if (settingsBioCount) settingsBioCount.textContent = String((settingsBio.value || '').length);
+    }
+    const theme = document.getElementById('settings-theme');
+    const density = document.getElementById('settings-density');
+    const language = document.getElementById('settings-language');
+    const timezone = document.getElementById('settings-timezone');
+    const notifHigh = document.getElementById('settings-notif-high');
+    const notifAssign = document.getElementById('settings-notif-assign');
+    const notifCampaign = document.getElementById('settings-notif-campaign');
+    const notifEmail = document.getElementById('settings-notif-email');
+    const twoFa = document.getElementById('settings-2fa');
+    if (theme) theme.value = fraudSettings.theme || 'light';
+    if (density) density.value = fraudSettings.density || 'comfortable';
+    if (language) language.value = fraudSettings.language || 'en';
+    if (timezone) timezone.value = fraudSettings.timezone || 'Asia/Riyadh';
+    if (notifHigh) notifHigh.checked = !!fraudSettings.notifHigh;
+    if (notifAssign) notifAssign.checked = !!fraudSettings.notifAssign;
+    if (notifCampaign) notifCampaign.checked = !!fraudSettings.notifCampaign;
+    if (notifEmail) notifEmail.checked = !!fraudSettings.notifEmail;
+    if (twoFa) twoFa.checked = !!fraudSettings.twoFactor;
+    applyFraudSettingsToUi();
+  }
+
+  function readSettingsForm() {
+    fraudSettings = {
+      ...fraudSettings,
+      fullName: settingsFullName?.value?.trim() || 'Analyst',
+      email: settingsEmail?.value?.trim() || '',
+      role: settingsRole?.value || 'Fraud Analyst',
+      team: settingsTeam?.value || 'Fraud Team',
+      phoneCode: settingsPhoneCode?.value || '+966',
+      phone: settingsPhone?.value?.trim() || '',
+      bio: settingsBio?.value || '',
+      theme: document.getElementById('settings-theme')?.value || 'light',
+      density: document.getElementById('settings-density')?.value || 'comfortable',
+      language: document.getElementById('settings-language')?.value || 'en',
+      timezone: document.getElementById('settings-timezone')?.value || 'Asia/Riyadh',
+      notifHigh: !!document.getElementById('settings-notif-high')?.checked,
+      notifAssign: !!document.getElementById('settings-notif-assign')?.checked,
+      notifCampaign: !!document.getElementById('settings-notif-campaign')?.checked,
+      notifEmail: !!document.getElementById('settings-notif-email')?.checked,
+      twoFactor: !!document.getElementById('settings-2fa')?.checked
+    };
+  }
+
+  function switchSettingsTab(tab) {
+    document.querySelectorAll('[data-settings-tab]').forEach((btn) => {
+      btn.classList.toggle('fraud-settings-nav__item--active', btn.dataset.settingsTab === tab);
+    });
+    document.querySelectorAll('[data-settings-pane]').forEach((pane) => {
+      pane.hidden = pane.dataset.settingsPane !== tab;
+    });
+  }
+
+  function openFraudSettings() {
+    fillSettingsForm();
+    switchSettingsTab('profile');
+    if (fraudSettingsModal) fraudSettingsModal.hidden = false;
+  }
+
+  function closeFraudSettings() {
+    if (fraudSettingsModal) fraudSettingsModal.hidden = true;
+  }
+
+  function startFraudCasesAutoRefresh() {
+    stopFraudCasesAutoRefresh();
+    fraudCasesPollTimer = setInterval(() => {
+      if (activeMode !== 'fraud' || !fraudOpsAuthenticated) return;
+      if (fraudOps?.hidden) return;
+      renderFraudOpsDashboard();
+    }, 12000);
+  }
+
+  function stopFraudCasesAutoRefresh() {
+    if (fraudCasesPollTimer) {
+      clearInterval(fraudCasesPollTimer);
+      fraudCasesPollTimer = null;
+    }
   }
 
   function switchMode(mode) {
@@ -749,6 +984,7 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     } else {
       hideFraudLogin();
       if (fraudOps) fraudOps.hidden = true;
+      stopFraudCasesAutoRefresh();
     }
 
     if (recommendCard) {
@@ -2279,7 +2515,7 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
   }
 
   function switchFraudView(view) {
-    const allowed = ['dashboard', 'queue', 'campaigns', 'all', 'playbooks'];
+    const allowed = ['dashboard', 'queue', 'campaigns', 'all', 'playbooks', 'notes'];
     const target = allowed.includes(view) ? view : 'dashboard';
     fraudView = target;
     if (fraudViewDashboard) fraudViewDashboard.hidden = target !== 'dashboard';
@@ -2287,6 +2523,7 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     if (fraudViewCampaigns) fraudViewCampaigns.hidden = target !== 'campaigns';
     if (fraudViewAll) fraudViewAll.hidden = target !== 'all';
     if (fraudViewPlaybooks) fraudViewPlaybooks.hidden = target !== 'playbooks';
+    if (fraudViewNotes) fraudViewNotes.hidden = target !== 'notes';
   }
 
   function setActiveFraudNav(navKey) {
@@ -2297,6 +2534,7 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
       else if (navKey === 'campaigns') active = nav === 'campaigns';
       else if (navKey === 'all') active = nav === 'all';
       else if (navKey === 'playbooks') active = nav === 'playbooks';
+      else if (navKey === 'notes') active = nav === 'notes';
       else if (navKey === 'queue') active = nav === 'queue' && !b.dataset.fraudFilterNav;
       else if (navKey === 'review') active = b.dataset.fraudFilterNav === 'Under Review';
       else if (navKey === 'pending') active = b.dataset.fraudFilterNav === 'Pending Review';
@@ -2341,6 +2579,12 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
       switchFraudView('playbooks');
       setActiveFraudNav('playbooks');
       renderPlaybooksPage();
+      return;
+    }
+    if (nav === 'notes') {
+      switchFraudView('notes');
+      setActiveFraudNav('notes');
+      renderNotesPage();
       return;
     }
     switchFraudView('queue');
@@ -2421,6 +2665,289 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
         <ul class="fraud-playbook-sources">${sourcesHtml}</ul>
       </header>
       <div class="fraud-playbook-phases">${phasesHtml}</div>`;
+  }
+
+  function formatNoteDate(iso) {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return '—';
+    return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  }
+
+  function formatNoteTime(iso) {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return '';
+    return d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  }
+
+  function formatNoteDateTime(iso) {
+    return `${formatNoteDate(iso)} · ${formatNoteTime(iso)}`;
+  }
+
+  function getFilteredNotes() {
+    const q = notesSearchQuery.trim().toLowerCase();
+    const source = liveNotesCache.length ? liveNotesCache : INTERNAL_NOTES;
+    return source.filter((n) => {
+      if (notesCaseFilter !== 'all' && n.caseId !== notesCaseFilter) return false;
+      if (notesAuthorFilter !== 'all' && n.author !== notesAuthorFilter) return false;
+      if (notesCategoryFilter !== 'all' && n.category !== notesCategoryFilter) return false;
+      if (notesPriorityFilter !== 'all' && n.priority !== notesPriorityFilter) return false;
+      if (!q) return true;
+      const hay = `${n.title || ''} ${n.content || n.note || ''} ${n.caseId || ''} ${(n.tags || []).join(' ')} ${n.author || ''}`.toLowerCase();
+      return hay.includes(q);
+    });
+  }
+
+  function populateNotesFilters() {
+    const source = liveNotesCache.length ? liveNotesCache : INTERNAL_NOTES;
+    if (fraudNotesCase) {
+      const cases = [...new Set(source.map((n) => n.caseId).filter(Boolean))].sort();
+      const current = fraudNotesCase.value || 'all';
+      fraudNotesCase.innerHTML = `<option value="all">All Cases</option>${cases.map((c) =>
+        `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`
+      ).join('')}`;
+      fraudNotesCase.value = cases.includes(current) || current === 'all' ? current : 'all';
+    }
+    if (fraudNotesAuthor) {
+      const authors = [...new Set(source.map((n) => n.author).filter(Boolean))].sort();
+      const current = fraudNotesAuthor.value || 'all';
+      fraudNotesAuthor.innerHTML = `<option value="all">All Authors</option>${authors.map((a) =>
+        `<option value="${escapeHtml(a)}">${escapeHtml(a)}</option>`
+      ).join('')}`;
+      fraudNotesAuthor.value = authors.includes(current) || current === 'all' ? current : 'all';
+    }
+  }
+
+  function updateNotesKpis() {
+    const source = liveNotesCache.length ? liveNotesCache : INTERNAL_NOTES;
+    const analyst = (typeof FraudOpsLive !== 'undefined' && FraudOpsLive.currentAnalyst()?.fullName) || CURRENT_ANALYST;
+    const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    if (notesKpiTotal) notesKpiTotal.textContent = String(source.length);
+    if (notesKpiMine) notesKpiMine.textContent = String(source.filter((n) => n.author === analyst).length);
+    if (notesKpiPinned) notesKpiPinned.textContent = String(source.filter((n) => n.pinned).length);
+    if (notesKpiRecent) {
+      notesKpiRecent.textContent = String(source.filter((n) => new Date(n.updatedAt || n.createdAt).getTime() >= weekAgo).length);
+    }
+  }
+
+  function renderNotesPager(total) {
+    if (!fraudNotesPager) return;
+    const pages = Math.max(1, Math.ceil(total / NOTES_PER_PAGE));
+    if (notesPage > pages) notesPage = pages;
+    if (total === 0) {
+      fraudNotesPager.innerHTML = '';
+      return;
+    }
+    const buttons = [];
+    for (let i = 1; i <= pages; i += 1) {
+      if (pages > 7 && i > 3 && i < pages - 1 && Math.abs(i - notesPage) > 1) {
+        if (buttons[buttons.length - 1] !== '…') buttons.push('…');
+        continue;
+      }
+      buttons.push(i);
+    }
+    fraudNotesPager.innerHTML = buttons.map((p) => {
+      if (p === '…') return '<span style="padding:0 4px;color:#94a3b8">…</span>';
+      return `<button type="button" data-notes-page="${p}" class="${p === notesPage ? 'is-active' : ''}">${p}</button>`;
+    }).join('');
+    fraudNotesPager.querySelectorAll('[data-notes-page]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        notesPage = Number(btn.dataset.notesPage) || 1;
+        renderNotesPage();
+      });
+    });
+  }
+
+  async function renderNotesPage() {
+    if (typeof FraudOpsLive !== 'undefined') {
+      try {
+        const rows = await FraudOpsLive.listNotes();
+        liveNotesCache = rows.map((n) => ({
+          id: n.id,
+          title: (n.note || '').slice(0, 72) || 'Internal note',
+          caseId: n.caseId || '—',
+          author: n.analystName || 'Analyst',
+          createdAt: n.createdAt,
+          updatedAt: n.createdAt,
+          category: 'Investigation',
+          priority: 'Medium',
+          pinned: false,
+          tags: [],
+          content: n.note || '',
+          note: n.note || '',
+          analystId: n.analystId,
+          attachment: null,
+          comments: [],
+        }));
+      } catch (err) {
+        console.warn('Notes API failed', err);
+      }
+    }
+
+    populateNotesFilters();
+    updateNotesKpis();
+    if (!fraudNotesList) return;
+
+    const filtered = getFilteredNotes();
+    if (fraudNotesListTitle) fraudNotesListTitle.textContent = `All Notes (${filtered.length})`;
+
+    if (!filtered.length) {
+      fraudNotesList.innerHTML = '<li class="fraud-camp-list__empty">No notes yet. Open a case and add an internal note.</li>';
+      renderNotesPager(0);
+      if (fraudNotesEmpty) fraudNotesEmpty.hidden = false;
+      if (fraudNotesBody) fraudNotesBody.hidden = true;
+      return;
+    }
+
+    const start = (notesPage - 1) * NOTES_PER_PAGE;
+    const pageItems = filtered.slice(start, start + NOTES_PER_PAGE);
+    if (!selectedNoteId || !filtered.some((n) => n.id === selectedNoteId)) {
+      selectedNoteId = pageItems[0]?.id || filtered[0].id;
+    }
+
+    fraudNotesList.innerHTML = pageItems.map((n) => `
+      <li>
+        <button type="button" class="fraud-notes-card${n.id === selectedNoteId ? ' fraud-notes-card--active' : ''}" data-note-id="${escapeHtml(n.id)}">
+          <span class="fraud-notes-card__icon" aria-hidden="true">${n.pinned ? '📌' : '📄'}</span>
+          <span class="fraud-notes-card__body">
+            <span class="fraud-notes-card__title">${escapeHtml(n.title)}</span>
+            <span class="fraud-notes-card__meta">
+              <span class="fraud-notes-card__case">${escapeHtml(n.caseId)}</span>
+              <span>${escapeHtml(formatNoteDate(n.createdAt))}</span>
+            </span>
+          </span>
+          <span class="fraud-notes-card__time">${escapeHtml(formatNoteTime(n.createdAt))}</span>
+        </button>
+      </li>`).join('');
+
+    fraudNotesList.querySelectorAll('[data-note-id]').forEach((btn) => {
+      btn.addEventListener('click', () => selectNote(btn.dataset.noteId));
+    });
+
+    renderNotesPager(filtered.length);
+    selectNote(selectedNoteId);
+  }
+
+  function selectNote(id) {
+    selectedNoteId = id;
+    const source = liveNotesCache.length ? liveNotesCache : INTERNAL_NOTES;
+    const note = source.find((n) => n.id === id);
+    if (!note || !fraudNotesBody) return;
+
+    fraudNotesList?.querySelectorAll('[data-note-id]').forEach((btn) => {
+      btn.classList.toggle('fraud-notes-card--active', btn.dataset.noteId === id);
+    });
+
+    if (fraudNotesEmpty) fraudNotesEmpty.hidden = true;
+    fraudNotesBody.hidden = false;
+
+    const priorityClass = `fraud-notes-priority--${(note.priority || 'low').toLowerCase()}`;
+    const tagsHtml = (note.tags || []).map((t) => `<span class="fraud-notes-chip">${escapeHtml(t)}</span>`).join('');
+    const attachHtml = note.attachment
+      ? `<p class="fraud-notes-section-label">Attachments</p>
+         <div class="fraud-notes-attach">
+           <span class="fraud-notes-attach__icon">PDF</span>
+           <div class="fraud-notes-attach__info">
+             <strong>${escapeHtml(note.attachment.name)}</strong>
+             <span>${escapeHtml(note.attachment.size || '')}</span>
+           </div>
+           <div class="fraud-notes-attach__actions">
+             <button type="button" class="fraud-notes-icon-btn" title="Download" aria-label="Download">⬇</button>
+             <button type="button" class="fraud-notes-icon-btn" title="View" aria-label="View">👁</button>
+           </div>
+         </div>`
+      : '';
+
+    const commentsHtml = (note.comments || []).map((c) => {
+      const initials = (c.author || '?').split(/\s+/).map((p) => p[0]).join('').slice(0, 2).toUpperCase();
+      return `<article class="fraud-notes-comment">
+        <span class="fraud-notes-comment__avatar">${escapeHtml(initials)}</span>
+        <div class="fraud-notes-comment__body">
+          <strong>${escapeHtml(c.author)}</strong>
+          <p>${escapeHtml(c.text)}</p>
+          <time>${escapeHtml(formatNoteDateTime(c.at))}</time>
+        </div>
+      </article>`;
+    }).join('');
+
+    fraudNotesBody.innerHTML = `
+      <div class="fraud-notes-detail__top">
+        <h2>
+          ${escapeHtml(note.title)}
+          ${note.pinned ? '<span class="fraud-notes-pin">📌 Pinned</span>' : ''}
+        </h2>
+        <div class="fraud-notes-detail__actions">
+          <button type="button" class="fraud-notes-icon-btn" id="btn-note-edit" title="Edit" aria-label="Edit">✎</button>
+          <button type="button" class="fraud-notes-icon-btn" id="btn-note-more" title="More" aria-label="More">⋮</button>
+        </div>
+      </div>
+      <dl class="fraud-notes-meta">
+        <div><dt>Case ID</dt><dd><a href="#">${escapeHtml(note.caseId)}</a></dd></div>
+        <div><dt>Author</dt><dd>${escapeHtml(note.author)}</dd></div>
+        <div><dt>Created</dt><dd>${escapeHtml(formatNoteDateTime(note.createdAt))}</dd></div>
+        <div><dt>Updated</dt><dd>${escapeHtml(formatNoteDateTime(note.updatedAt || note.createdAt))}</dd></div>
+      </dl>
+      <div class="fraud-notes-tags-row">
+        <div>
+          <label>Category</label>
+          <span class="fraud-notes-cat">${escapeHtml(note.category)}</span>
+        </div>
+        <div>
+          <label>Priority</label>
+          <span class="fraud-notes-priority ${priorityClass}">
+            <span class="fraud-notes-priority__dot"></span>
+            ${escapeHtml(note.priority)}
+          </span>
+        </div>
+      </div>
+      <pre class="fraud-notes-content">${escapeHtml(note.content)}</pre>
+      <div>
+        <p class="fraud-notes-section-label">Tags</p>
+        <div class="fraud-notes-chip-row">
+          ${tagsHtml}
+          <button type="button" class="fraud-notes-chip-add" id="btn-note-add-tag" aria-label="Add tag">+</button>
+        </div>
+      </div>
+      ${attachHtml}
+      <div class="fraud-notes-comments">
+        <p class="fraud-notes-section-label">Comments</p>
+        <form class="fraud-notes-comment-form" id="fraud-notes-comment-form">
+          <input type="text" id="fraud-notes-comment-input" placeholder="Add a comment..." autocomplete="off" />
+          <button type="submit">Add Comment</button>
+        </form>
+        ${commentsHtml || '<p style="margin:0;color:#94a3b8;font-size:0.85rem">No comments yet.</p>'}
+      </div>`;
+
+    const commentForm = document.getElementById('fraud-notes-comment-form');
+    const commentInput = document.getElementById('fraud-notes-comment-input');
+    if (commentForm && commentInput) {
+      commentForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const text = commentInput.value.trim();
+        if (!text) return;
+        note.comments = note.comments || [];
+        note.comments.push({ author: CURRENT_ANALYST, text, at: new Date().toISOString() });
+        note.updatedAt = new Date().toISOString();
+        commentInput.value = '';
+        selectNote(note.id);
+        showToast('Comment added');
+      });
+    }
+
+    document.getElementById('btn-note-edit')?.addEventListener('click', () => {
+      showToast('Edit note — coming soon');
+    });
+    document.getElementById('btn-note-more')?.addEventListener('click', () => {
+      note.pinned = !note.pinned;
+      renderNotesPage();
+      showToast(note.pinned ? 'Note pinned' : 'Note unpinned');
+    });
+    document.getElementById('btn-note-add-tag')?.addEventListener('click', () => {
+      const tag = window.prompt('Add a tag');
+      if (!tag || !tag.trim()) return;
+      note.tags = note.tags || [];
+      note.tags.push(tag.trim().toLowerCase());
+      selectNote(note.id);
+    });
   }
 
   function getVisibleFraudCases() {
@@ -3037,8 +3564,9 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
       const statusClass = statusBadgeClass(c.status);
       const icon = sourceIcon(source);
       const sub = caseSubtitle(c);
-      const assignee = c.status === 'Under Review' || c.status === 'Closed' ? 'Analyst' : 'Unassigned';
-      const initial = assignee === 'Unassigned' ? '?' : 'A';
+      const assignee = c.assignedTo
+        || (c.status === 'Under Review' || c.status === 'Closed' ? 'Analyst' : 'Unassigned');
+      const initial = assignee === 'Unassigned' ? '?' : String(assignee).trim().charAt(0).toUpperCase();
       return `
         <tr data-case-id="${escapeHtml(c.id)}">
           <td><input type="checkbox" class="all-row-check" aria-label="Select ${escapeHtml(c.id)}" /></td>
@@ -3156,11 +3684,18 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     openFraudDrawer();
 
     try {
-      const response = await fetch(getApiUrl(`/api/cases/${encodeURIComponent(id)}`));
+      const analystName =
+        (typeof fraudSettings !== 'undefined' && fraudSettings.fullName) ||
+        fraudOpsAnalystName?.textContent ||
+        'Analyst';
+
+      const response = await fetch(
+        getApiUrl(`/api/cases/${encodeURIComponent(id)}?assigned_to=${encodeURIComponent(analystName)}`),
+      );
       const result = await response.json();
       if (!response.ok || !result.success) throw new Error(result.error || 'Case not found');
-
       const c = result.case;
+
       selectedFraudCase = c;
       const inv = c.investigation || {};
 
@@ -3214,24 +3749,72 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
       if (fraudDocCustomer) fraudDocCustomer.textContent = inv.customerNotificationDraft || '\u2014';
       if (fraudDocManagement) fraudDocManagement.textContent = inv.managementSummary || '\u2014';
       if (fraudDocNotes) {
-        const notes = inv.investigationNotes || [];
-        fraudDocNotes.innerHTML = notes.length
-          ? notes.map((n) => `<li>${escapeHtml(n)}</li>`).join('')
-          : '<li>\u2014</li>';
+        const invNotes = inv.investigationNotes || [];
+        let html = invNotes.length
+          ? invNotes.map((n) => `<li>${escapeHtml(n)}</li>`).join('')
+          : '';
+        try {
+          if (typeof FraudOpsLive !== 'undefined') {
+            const live = await FraudOpsLive.listCaseNotes(c.id);
+            if (live.length) {
+              html += live.map((n) => `
+                <li>
+                  <strong>${escapeHtml(n.analystName || 'Analyst')}</strong>
+                  <span style="color:#94a3b8;font-size:0.75rem"> · ${escapeHtml(formatNoteDateTime(n.createdAt))}</span>
+                  <div>${escapeHtml(n.note)}</div>
+                </li>`).join('');
+            }
+          }
+        } catch {
+          /* ignore */
+        }
+        fraudDocNotes.innerHTML = html || '<li>\u2014</li>';
+
+        // Attach add-note controls once under the list
+        let addWrap = document.getElementById('fraud-case-note-add');
+        if (!addWrap && fraudDocNotes.parentElement) {
+          addWrap = document.createElement('div');
+          addWrap.id = 'fraud-case-note-add';
+          addWrap.style.cssText = 'display:flex;gap:8px;margin-top:10px;';
+          addWrap.innerHTML = `
+            <input type="text" id="fraud-case-note-input" placeholder="Add internal note..." style="flex:1;padding:8px 10px;border:1px solid #e2e8f0;border-radius:8px;font:inherit" />
+            <button type="button" class="btn btn--primary" id="fraud-case-note-save">Save</button>`;
+          fraudDocNotes.parentElement.appendChild(addWrap);
+        }
+        const saveBtn = document.getElementById('fraud-case-note-save');
+        const noteInput = document.getElementById('fraud-case-note-input');
+        if (saveBtn && noteInput) {
+          saveBtn.onclick = async () => {
+            const text = noteInput.value.trim();
+            if (!text) return;
+            const analyst = typeof FraudOpsLive !== 'undefined' ? FraudOpsLive.currentAnalyst() : null;
+            try {
+              await FraudOpsLive.addCaseNote(c.id, text, analyst?.id);
+              noteInput.value = '';
+              showToast('Note saved');
+              await selectFraudCase(c.id);
+            } catch (err) {
+              showToast(err.message || 'Could not save note');
+            }
+          };
+        }
       }
 
       const closed = c.status === 'Closed';
       applyFraudDecisionButtons(c.decision, closed);
 
       try {
+        const cached = fraudCasesCache.find((x) => x.id === id);
+        if (cached) {
+          cached.status = c.status;
+          cached.assignedTo = c.assignedTo;
+        }
+        renderFraudCaseTable();
         const statsRes = await fetch(getApiUrl('/api/cases'));
         const statsJson = await statsRes.json();
         if (statsJson.success && statsJson.stats) {
           applyFraudKpis(statsJson.stats, fraudCasesCache);
         }
-        const cached = fraudCasesCache.find((x) => x.id === id);
-        if (cached) cached.status = c.status;
-        renderFraudCaseTable();
       } catch {
         /* ignore */
       }
@@ -3265,16 +3848,25 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     });
 
     try {
+      const analyst = (typeof FraudOpsLive !== 'undefined' && FraudOpsLive.currentAnalyst()) || null;
       const response = await fetch(getApiUrl(`/api/cases/${encodeURIComponent(selectedFraudCaseId)}/decision`), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ outcome, action, analystNote }),
+        body: JSON.stringify({
+          outcome,
+          action,
+          analystNote,
+          reviewedBy: analyst?.fullName || fraudSettings.fullName || 'Analyst',
+          assignedTo: analyst?.fullName || fraudSettings.fullName || 'Analyst',
+        }),
       });
       const result = await response.json();
       if (!response.ok || !result.success) throw new Error(result.error || 'Decision failed');
+
       showToast(`Decision saved: ${outcome}`);
       if (fraudModifyPanel) fraudModifyPanel.hidden = true;
       await selectFraudCase(selectedFraudCaseId);
+      await renderFraudOpsDashboard();
     } catch (err) {
       console.error(err);
       showToast(err.message || 'Could not save decision');
@@ -3368,15 +3960,20 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
   }
 
   // Wire fraud ops events
-  function completeFraudLogin(remember) {
+  async function completeFraudLogin(remember, analyst) {
     setFraudAuth(true, remember);
+    if (analyst && typeof FraudOpsLive !== 'undefined') {
+      const sess = FraudOpsLive.loadSession() || {};
+      sess.analyst = analyst;
+      FraudOpsLive.saveSession(sess);
+    }
     if (fraudLoginError) fraudLoginError.hidden = true;
     enterFraudOpsDashboard();
     showToast('Signed in to Fraud Ops');
   }
 
   if (fraudLoginForm) {
-    fraudLoginForm.addEventListener('submit', (e) => {
+    fraudLoginForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       const user = fraudLoginUser?.value?.trim() || '';
       const pass = fraudLoginPass?.value || '';
@@ -3387,13 +3984,29 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
         }
         return;
       }
-      completeFraudLogin(!!fraudLoginRemember?.checked);
+
+      if (typeof FraudOpsLive !== 'undefined') {
+        try {
+          if (fraudLoginError) fraudLoginError.hidden = true;
+          const result = await FraudOpsLive.login(user, pass);
+          await completeFraudLogin(!!fraudLoginRemember?.checked, result.analyst);
+          return;
+        } catch (err) {
+          if (fraudLoginError) {
+            fraudLoginError.textContent = err.message || 'Invalid login credentials';
+            fraudLoginError.hidden = false;
+          }
+          return;
+        }
+      }
+
+      await completeFraudLogin(!!fraudLoginRemember?.checked, null);
     });
   }
 
   if (fraudLoginSso) {
     fraudLoginSso.addEventListener('click', () => {
-      completeFraudLogin(!!fraudLoginRemember?.checked);
+      showToast('Use your Alinma email and password to sign in');
     });
   }
 
@@ -3414,6 +4027,12 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
   if (btnFraudLogout) {
     btnFraudLogout.addEventListener('click', () => {
       setFraudAuth(false, false);
+      if (typeof FraudOpsLive !== 'undefined') {
+        FraudOpsLive.clearSession();
+        FraudOpsLive.stopRealtime();
+      }
+      stopFraudCasesAutoRefresh();
+      closeFraudSettings();
       if (fraudLoginUser) fraudLoginUser.value = '';
       if (fraudLoginPass) fraudLoginPass.value = '';
       showFraudLogin();
@@ -3421,12 +4040,86 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     });
   }
 
-  if (btnFraudRefresh) {
-    btnFraudRefresh.addEventListener('click', () => {
-      renderFraudOpsDashboard();
-      showToast('Fraud queue refreshed');
+  if (btnFraudSettings) {
+    btnFraudSettings.addEventListener('click', () => openFraudSettings());
+  }
+  if (fraudOpsAnalyst) {
+    fraudOpsAnalyst.addEventListener('click', () => openFraudSettings());
+    fraudOpsAnalyst.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        openFraudSettings();
+      }
     });
   }
+  if (btnFraudSettingsClose) btnFraudSettingsClose.addEventListener('click', () => closeFraudSettings());
+  if (btnFraudSettingsCancel) btnFraudSettingsCancel.addEventListener('click', () => closeFraudSettings());
+  if (fraudSettingsBackdrop) fraudSettingsBackdrop.addEventListener('click', () => closeFraudSettings());
+  if (btnFraudSettingsSave) {
+    btnFraudSettingsSave.addEventListener('click', async () => {
+      readSettingsForm();
+      saveFraudSettings();
+      applyFraudSettingsToUi();
+
+      const analyst = typeof FraudOpsLive !== 'undefined' ? FraudOpsLive.currentAnalyst() : null;
+      if (analyst?.id && typeof FraudOpsLive !== 'undefined') {
+        try {
+          await FraudOpsLive.updateAnalystProfile(analyst.id, {
+            fullName: fraudSettings.fullName,
+            email: fraudSettings.email,
+            role: fraudSettings.role,
+            team: fraudSettings.team,
+            phone: fraudSettings.phone,
+            phoneCode: fraudSettings.phoneCode,
+            bio: fraudSettings.bio,
+          });
+          const newPass = document.getElementById('settings-new-pass')?.value || '';
+          const confirmPass = document.getElementById('settings-confirm-pass')?.value || '';
+          const currentPass = document.getElementById('settings-current-pass')?.value || '';
+          const sess = FraudOpsLive.loadSession();
+          if (newPass && newPass === confirmPass) {
+            await FraudOpsLive.jsonFetch('/api/auth/password', {
+              method: 'POST',
+              body: JSON.stringify({
+                analyst_id: analyst.id,
+                access_token: sess?.session?.access_token,
+                currentPassword: currentPass || undefined,
+                newPassword: newPass,
+              }),
+            });
+          } else if (newPass && newPass !== confirmPass) {
+            showToast('New password and confirmation do not match');
+            return;
+          }
+        } catch (err) {
+          console.warn(err);
+          showToast(err.message || 'Profile saved locally; cloud sync failed');
+        }
+      }
+
+      closeFraudSettings();
+      showToast('Settings saved');
+    });
+  }
+  document.querySelectorAll('[data-settings-tab]').forEach((btn) => {
+    btn.addEventListener('click', () => switchSettingsTab(btn.dataset.settingsTab));
+  });
+  if (settingsBio) {
+    settingsBio.addEventListener('input', () => {
+      if (settingsBioCount) settingsBioCount.textContent = String(settingsBio.value.length);
+    });
+  }
+  document.getElementById('btn-settings-change-photo')?.addEventListener('click', () => {
+    showToast('Photo upload coming soon');
+  });
+  document.getElementById('btn-settings-remove-photo')?.addEventListener('click', () => {
+    showToast('Profile photo removed');
+  });
+  document.getElementById('btn-settings-revoke-other')?.addEventListener('click', () => {
+    showToast('Other session revoked');
+  });
+  loadFraudSettings();
+  applyFraudSettingsToUi();
 
   if (btnFraudCloseDrawer) {
     btnFraudCloseDrawer.addEventListener('click', () => closeFraudDrawer());
@@ -3516,6 +4209,74 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
       scrollFraudSection(nav);
     });
   });
+
+  function resetNotesPage() {
+    notesPage = 1;
+    renderNotesPage();
+  }
+
+  if (fraudNotesSearch) {
+    fraudNotesSearch.addEventListener('input', () => {
+      notesSearchQuery = fraudNotesSearch.value || '';
+      resetNotesPage();
+    });
+  }
+  if (fraudNotesCase) {
+    fraudNotesCase.addEventListener('change', () => {
+      notesCaseFilter = fraudNotesCase.value || 'all';
+      resetNotesPage();
+    });
+  }
+  if (fraudNotesAuthor) {
+    fraudNotesAuthor.addEventListener('change', () => {
+      notesAuthorFilter = fraudNotesAuthor.value || 'all';
+      resetNotesPage();
+    });
+  }
+  if (fraudNotesCategory) {
+    fraudNotesCategory.addEventListener('change', () => {
+      notesCategoryFilter = fraudNotesCategory.value || 'all';
+      resetNotesPage();
+    });
+  }
+  if (fraudNotesPriority) {
+    fraudNotesPriority.addEventListener('change', () => {
+      notesPriorityFilter = fraudNotesPriority.value || 'all';
+      resetNotesPage();
+    });
+  }
+  if (btnNotesNew) {
+    btnNotesNew.addEventListener('click', () => {
+      const title = window.prompt('Note title');
+      if (!title || !title.trim()) return;
+      const id = `note-${Date.now()}`;
+      const now = new Date().toISOString();
+      INTERNAL_NOTES.unshift({
+        id,
+        title: title.trim(),
+        caseId: 'CA-NEW',
+        author: CURRENT_ANALYST,
+        createdAt: now,
+        updatedAt: now,
+        category: 'Investigation',
+        priority: 'Medium',
+        pinned: false,
+        tags: [],
+        content: 'New internal note — add investigation details here.',
+        attachment: null,
+        comments: []
+      });
+      selectedNoteId = id;
+      notesPage = 1;
+      renderNotesPage();
+      showToast('Note created');
+    });
+  }
+  if (btnNotesFilters) {
+    btnNotesFilters.addEventListener('click', () => {
+      showToast('Use the dropdown filters above to refine notes');
+    });
+  }
 
   document.querySelectorAll('[data-fraud-quick]').forEach((btn) => {
     btn.addEventListener('click', () => {

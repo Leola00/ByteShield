@@ -28,3 +28,7 @@ backend/byteshield_incidents.json
 backend/byteshield_soc.db
 backend/fraud_cases.json
 backend/fraud_campaigns.json
+
+__pycache__/
+*.pyc
+

@@ -1,6 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
+const { getSupabase, isConfigured } = require("./supabase");
 
 const CASES_FILE = path.join(__dirname, "fraud_cases.json");
 const CAMPAIGNS_FILE = path.join(__dirname, "fraud_campaigns.json");
@@ -27,12 +28,12 @@ function writeJson(file, data) {
   fs.writeFileSync(file, JSON.stringify(data, null, 2), "utf8");
 }
 
-function loadCases() {
+function loadCasesLocal() {
   const data = readJson(CASES_FILE, []);
   return Array.isArray(data) ? data : [];
 }
 
-function saveCases(cases) {
+function saveCasesLocal(cases) {
   writeJson(CASES_FILE, cases);
 }
 
@@ -101,7 +102,6 @@ function campaignFingerprint(iocs, fraudCategory, content) {
     (iocs.urls && iocs.urls[0]) ||
     null;
 
-  // Prefer stable IOC-based grouping so similar phishing waves merge
   if (primary) {
     return `${String(primary).toLowerCase()}::${String(fraudCategory || "general").toLowerCase()}`;
   }
@@ -164,7 +164,74 @@ function upsertCampaignForCase(caseRecord) {
   return campaign;
 }
 
-function createCase(payload) {
+function rowToCase(row) {
+  if (!row) return null;
+  const iocs = row.iocs || {};
+  let investigation = row.investigation || null;
+  if (!investigation && (row.ai_summary || row.ai_recommendation)) {
+    investigation = {
+      aiInvestigationSummary: row.ai_summary || "",
+      recommendation: {
+        action: row.ai_recommendation || "Continue Monitoring",
+        rationale: row.ai_summary || "",
+        confidence: null,
+      },
+    };
+  }
+
+  return {
+    id: row.case_id,
+    uuid: row.id,
+    status: row.status || "Pending Review",
+    submittedAt: row.created_at,
+    contentType: row.content_type || row.source || "Message",
+    content: row.content || "",
+    screenshotDataUrl: row.screenshot_data_url || null,
+    urls: row.urls || iocs.urls || [],
+    emails: row.emails || iocs.emails || [],
+    phones: row.phones || iocs.phones || [],
+    fraudProbability: Number(row.fraud_score) || 0,
+    aiExplanation: row.ai_summary || "",
+    reasoning: row.reasoning || [],
+    fraudCategory: row.fraud_category || "general",
+    threatType: row.fraud_category || "general",
+    iocs,
+    campaignId: row.campaign_id || null,
+    investigation,
+    decision: row.decision || null,
+    preview: row.preview || String(row.content || "").slice(0, 160),
+    assignedTo: row.assigned_to || null,
+    source: row.source || row.content_type || "Message",
+  };
+}
+
+function caseToRow(caseRecord) {
+  const inv = caseRecord.investigation || null;
+  return {
+    case_id: caseRecord.id,
+    source: caseRecord.contentType || caseRecord.source || "Message",
+    content: caseRecord.content || "",
+    fraud_score: Number(caseRecord.fraudProbability) || 0,
+    fraud_category: caseRecord.fraudCategory || caseRecord.threatType || "general",
+    ai_summary: inv?.aiInvestigationSummary || caseRecord.aiExplanation || "",
+    ai_recommendation: inv?.recommendation?.action || null,
+    iocs: caseRecord.iocs || {},
+    status: caseRecord.status || "Pending Review",
+    assigned_to: caseRecord.assignedTo || null,
+    content_type: caseRecord.contentType || "Message",
+    preview: caseRecord.preview || String(caseRecord.content || "").slice(0, 160),
+    campaign_id: caseRecord.campaignId || null,
+    screenshot_data_url: caseRecord.screenshotDataUrl || null,
+    reasoning: caseRecord.reasoning || [],
+    urls: caseRecord.urls || caseRecord.iocs?.urls || [],
+    emails: caseRecord.emails || caseRecord.iocs?.emails || [],
+    phones: caseRecord.phones || caseRecord.iocs?.phones || [],
+    investigation: inv,
+    decision: caseRecord.decision || null,
+  };
+}
+
+async function createCase(payload) {
   const now = new Date().toISOString();
   const content = String(payload.content || "");
   const extracted = extractIocs(content);
@@ -197,34 +264,108 @@ function createCase(payload) {
     investigation: null,
     decision: null,
     preview: content.slice(0, 160),
+    assignedTo: null,
+    source: payload.contentType || "Message",
   };
 
   const campaign = upsertCampaignForCase(caseRecord);
   caseRecord.campaignId = campaign.id;
 
-  const cases = loadCases();
-  cases.unshift(caseRecord);
-  saveCases(cases);
+  if (isConfigured) {
+    const sb = getSupabase();
+    const { data, error } = await sb
+      .from("fraud_cases")
+      .insert(caseToRow(caseRecord))
+      .select("*")
+      .single();
+    if (error) throw error;
+    return { case: rowToCase(data), campaign };
+  }
 
+  const cases = loadCasesLocal();
+  cases.unshift(caseRecord);
+  saveCasesLocal(cases);
   return { case: caseRecord, campaign };
 }
 
-function getCaseById(id) {
-  return loadCases().find((c) => c.id === id) || null;
+async function getCaseById(id) {
+  if (isConfigured) {
+    const sb = getSupabase();
+    const { data, error } = await sb
+      .from("fraud_cases")
+      .select("*")
+      .eq("case_id", id)
+      .maybeSingle();
+    if (error) throw error;
+    return rowToCase(data);
+  }
+  return loadCasesLocal().find((c) => c.id === id) || null;
 }
 
-function updateCase(id, updater) {
-  const cases = loadCases();
+async function updateCase(id, updater) {
+  const current = await getCaseById(id);
+  if (!current) return null;
+  const updated =
+    typeof updater === "function" ? updater(current) : { ...current, ...updater };
+
+  if (isConfigured) {
+    const sb = getSupabase();
+    const { data, error } = await sb
+      .from("fraud_cases")
+      .update(caseToRow(updated))
+      .eq("case_id", id)
+      .select("*")
+      .single();
+    if (error) throw error;
+    return rowToCase(data);
+  }
+
+  const cases = loadCasesLocal();
   const idx = cases.findIndex((c) => c.id === id);
   if (idx === -1) return null;
-  const updated = typeof updater === "function" ? updater(cases[idx]) : { ...cases[idx], ...updater };
   cases[idx] = updated;
-  saveCases(cases);
+  saveCasesLocal(cases);
   return updated;
 }
 
-function listCases({ status, category, q } = {}) {
-  let cases = loadCases();
+async function listCases({ status, category, q } = {}) {
+  if (isConfigured) {
+    const sb = getSupabase();
+    let query = sb.from("fraud_cases").select("*").order("created_at", { ascending: false });
+
+    if (status && status !== "all") {
+      query = query.eq("status", status);
+    }
+    if (category && category !== "all") {
+      query = query.eq("fraud_category", category);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    let cases = (data || []).map(rowToCase);
+    if (q) {
+      const needle = String(q).toLowerCase();
+      cases = cases.filter((c) => {
+        const hay = [
+          c.id,
+          c.content,
+          c.aiExplanation,
+          c.fraudCategory,
+          c.preview,
+          ...(c.urls || []),
+          ...(c.emails || []),
+          ...(c.iocs?.domains || []),
+        ]
+          .join(" ")
+          .toLowerCase();
+        return hay.includes(needle);
+      });
+    }
+    return cases;
+  }
+
+  let cases = loadCasesLocal();
 
   if (status && status !== "all") {
     const needle = String(status).toLowerCase();
@@ -262,8 +403,8 @@ function listCases({ status, category, q } = {}) {
   return cases;
 }
 
-function getStats() {
-  const cases = loadCases();
+async function getStats() {
+  const cases = await listCases();
   const startOfToday = new Date();
   startOfToday.setHours(0, 0, 0, 0);
   const todayMs = startOfToday.getTime();
@@ -283,16 +424,8 @@ function getStats() {
   };
 }
 
-function listCampaigns() {
-  const cases = loadCases();
-  return loadCampaigns()
-    .filter((c) => c.reportCount >= 1)
-    .sort((a, b) => b.reportCount - a.reportCount)
-    .map((campaign) => enrichCampaign(campaign, cases));
-}
-
 function enrichCampaign(campaign, allCases) {
-  const cases = (allCases || loadCases()).filter(
+  const cases = (allCases || []).filter(
     (c) => c.campaignId === campaign.id || (campaign.caseIds || []).includes(c.id),
   );
   const scores = cases.map((c) => Number(c.fraudProbability) || 0);
@@ -326,7 +459,6 @@ function enrichCampaign(campaign, allCases) {
     `classified as ${category}. Indicators suggest coordinated fraud activity ` +
     `impersonating trusted brands or services. Analysts should review linked cases and block shared IOCs.`;
 
-  // Simple 7-day trend buckets from case timestamps
   const trend = [0, 0, 0, 0, 0, 0, 0];
   const now = Date.now();
   cases.forEach((c) => {
@@ -335,7 +467,6 @@ function enrichCampaign(campaign, allCases) {
     if (daysAgo >= 0 && daysAgo < 7) trend[6 - daysAgo] += 1;
   });
   if (trend.every((n) => n === 0) && (campaign.reportCount || 0) > 0) {
-    // Distribute reports across the week for empty timestamp edge cases
     const n = campaign.reportCount;
     for (let i = 0; i < 7; i += 1) trend[i] = Math.max(0, Math.round(n / 7) + ((i % 3) - 1));
   }
@@ -376,18 +507,27 @@ function enrichCampaign(campaign, allCases) {
   };
 }
 
-function getCampaignById(id) {
-  const campaign = loadCampaigns().find((c) => c.id === id);
-  if (!campaign) return null;
-  return enrichCampaign(campaign);
+async function listCampaigns() {
+  const cases = await listCases();
+  return loadCampaigns()
+    .filter((c) => c.reportCount >= 1)
+    .sort((a, b) => b.reportCount - a.reportCount)
+    .map((campaign) => enrichCampaign(campaign, cases));
 }
 
-function setDecision(id, { outcome, action, analystNote }) {
+async function getCampaignById(id) {
+  const campaign = loadCampaigns().find((c) => c.id === id);
+  if (!campaign) return null;
+  const cases = await listCases();
+  return enrichCampaign(campaign, cases);
+}
+
+async function setDecision(id, { outcome, action, analystNote }) {
   return updateCase(id, (c) => ({
     ...c,
     status: "Closed",
     decision: {
-      outcome, // approve | modify | reject
+      outcome,
       action: action || c.investigation?.recommendation?.action || "Continue Monitoring",
       analystNote: analystNote || "",
       decidedAt: new Date().toISOString(),
@@ -395,10 +535,14 @@ function setDecision(id, { outcome, action, analystNote }) {
   }));
 }
 
-function markUnderReview(id) {
+async function markUnderReview(id, assignedTo = "Analyst") {
   return updateCase(id, (c) => {
     if (c.status === "Closed") return c;
-    return { ...c, status: "Under Review" };
+    return {
+      ...c,
+      status: "Under Review",
+      assignedTo: assignedTo || c.assignedTo || "Analyst",
+    };
   });
 }
 
@@ -414,4 +558,5 @@ module.exports = {
   getCampaignById,
   setDecision,
   markUnderReview,
+  isSupabaseConfigured: isConfigured,
 };
