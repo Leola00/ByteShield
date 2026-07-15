@@ -6224,6 +6224,25 @@ body {
   color: #64748b;
 }
 
+/* ── New note modal ── */
+.fraud-note-modal__panel {
+  width: min(520px, 100%);
+  max-height: min(85vh, 560px);
+}
+
+.fraud-note-modal__body {
+  padding: 0 24px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  overflow-y: auto;
+}
+
+.fraud-note-modal__body textarea {
+  min-height: 140px;
+  resize: vertical;
+}
+
 /* ── Settings modal ── */
 .fraud-settings-modal {
   position: absolute;

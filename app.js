@@ -527,6 +527,14 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
   const notesKpiRecent = document.getElementById('notes-kpi-recent');
   const btnNotesNew = document.getElementById('btn-notes-new');
   const btnNotesFilters = document.getElementById('btn-notes-filters');
+  const fraudNoteModal = document.getElementById('fraud-note-modal');
+  const fraudNoteModalBackdrop = document.getElementById('fraud-note-modal-backdrop');
+  const btnFraudNoteClose = document.getElementById('btn-fraud-note-close');
+  const btnFraudNoteCancel = document.getElementById('btn-fraud-note-cancel');
+  const btnFraudNoteSave = document.getElementById('btn-fraud-note-save');
+  const fraudNoteForm = document.getElementById('fraud-note-form');
+  const fraudNoteCaseSelect = document.getElementById('fraud-note-case-select');
+  const fraudNoteContent = document.getElementById('fraud-note-content');
   const fraudQueuePageBadge = document.getElementById('fraud-queue-page-badge');
   const fraudCampaignsPageBadge = document.getElementById('fraud-campaigns-page-badge');
   const fraudStatusFilter = document.getElementById('fraud-status-filter');
@@ -2824,6 +2832,85 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     });
   }
 
+  async function ensureCasesForNotes() {
+    if (fraudCasesCache.length) return fraudCasesCache;
+    try {
+      const res = await fetch(getApiUrl('/api/cases'));
+      const json = await res.json();
+      if (json.success) fraudCasesCache = json.cases || [];
+    } catch (err) {
+      console.warn('Could not load cases for notes', err);
+    }
+    return fraudCasesCache;
+  }
+
+  function populateNoteCaseSelect() {
+    if (!fraudNoteCaseSelect) return;
+    const cases = fraudCasesCache.slice().sort((a, b) => {
+      const ta = new Date(a.submittedAt || 0).getTime();
+      const tb = new Date(b.submittedAt || 0).getTime();
+      return tb - ta;
+    });
+    fraudNoteCaseSelect.innerHTML = `<option value="">Select a case…</option>${cases.map((c) =>
+      `<option value="${escapeHtml(c.id)}">${escapeHtml(c.id)} — ${escapeHtml(c.status || 'Unknown')} · ${escapeHtml((c.preview || c.content || '').slice(0, 48))}</option>`
+    ).join('')}`;
+  }
+
+  function closeNoteModal() {
+    if (fraudNoteModal) fraudNoteModal.hidden = true;
+    if (fraudNoteForm) fraudNoteForm.reset();
+  }
+
+  async function openNoteModal() {
+    if (!fraudNoteModal) return;
+    await ensureCasesForNotes();
+    populateNoteCaseSelect();
+    if (!fraudCasesCache.length) {
+      showToast('No cases available — submit a fraud report first');
+      return;
+    }
+    fraudNoteModal.hidden = false;
+    fraudNoteContent?.focus();
+  }
+
+  async function saveNewNote(event) {
+    event?.preventDefault();
+    const caseId = fraudNoteCaseSelect?.value?.trim();
+    const text = fraudNoteContent?.value?.trim();
+    if (!caseId) {
+      showToast('Select a case for this note');
+      return;
+    }
+    if (!text) {
+      showToast('Enter note content');
+      return;
+    }
+    if (typeof FraudOpsLive === 'undefined') {
+      showToast('Sign in to save notes to the database');
+      return;
+    }
+    const analyst = FraudOpsLive.currentAnalyst();
+    if (btnFraudNoteSave) {
+      btnFraudNoteSave.disabled = true;
+      btnFraudNoteSave.textContent = 'Saving…';
+    }
+    try {
+      const created = await FraudOpsLive.addCaseNote(caseId, text, analyst?.id);
+      closeNoteModal();
+      selectedNoteId = created?.id || null;
+      notesPage = 1;
+      await renderNotesPage();
+      showToast('Note saved to database');
+    } catch (err) {
+      showToast(err.message || 'Could not save note');
+    } finally {
+      if (btnFraudNoteSave) {
+        btnFraudNoteSave.disabled = false;
+        btnFraudNoteSave.textContent = 'Save Note';
+      }
+    }
+  }
+
   async function renderNotesPage() {
     if (typeof FraudOpsLive !== 'undefined') {
       try {
@@ -2858,7 +2945,7 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     if (fraudNotesListTitle) fraudNotesListTitle.textContent = `All Notes (${filtered.length})`;
 
     if (!filtered.length) {
-      fraudNotesList.innerHTML = '<li class="fraud-camp-list__empty">No notes yet. Open a case and add an internal note.</li>';
+      fraudNotesList.innerHTML = '<li class="fraud-camp-list__empty">No notes yet. Click <strong>+ New Note</strong> or open a case to add one.</li>';
       renderNotesPager(0);
       if (fraudNotesEmpty) fraudNotesEmpty.hidden = false;
       if (fraudNotesBody) fraudNotesBody.hidden = true;
@@ -4383,30 +4470,20 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
   }
   if (btnNotesNew) {
     btnNotesNew.addEventListener('click', () => {
-      const title = window.prompt('Note title');
-      if (!title || !title.trim()) return;
-      const id = `note-${Date.now()}`;
-      const now = new Date().toISOString();
-      INTERNAL_NOTES.unshift({
-        id,
-        title: title.trim(),
-        caseId: 'CA-NEW',
-        author: CURRENT_ANALYST,
-        createdAt: now,
-        updatedAt: now,
-        category: 'Investigation',
-        priority: 'Medium',
-        pinned: false,
-        tags: [],
-        content: 'New internal note — add investigation details here.',
-        attachment: null,
-        comments: []
-      });
-      selectedNoteId = id;
-      notesPage = 1;
-      renderNotesPage();
-      showToast('Note created');
+      openNoteModal();
     });
+  }
+  if (fraudNoteForm) {
+    fraudNoteForm.addEventListener('submit', saveNewNote);
+  }
+  if (fraudNoteModalBackdrop) {
+    fraudNoteModalBackdrop.addEventListener('click', closeNoteModal);
+  }
+  if (btnFraudNoteClose) {
+    btnFraudNoteClose.addEventListener('click', closeNoteModal);
+  }
+  if (btnFraudNoteCancel) {
+    btnFraudNoteCancel.addEventListener('click', closeNoteModal);
   }
   if (btnNotesFilters) {
     btnNotesFilters.addEventListener('click', () => {

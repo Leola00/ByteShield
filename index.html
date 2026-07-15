@@ -1145,6 +1145,36 @@
           </div>
         </div>
 
+        <!-- NEW NOTE MODAL -->
+        <div class="fraud-settings-modal fraud-note-modal" id="fraud-note-modal" hidden>
+          <div class="fraud-settings-modal__backdrop" id="fraud-note-modal-backdrop"></div>
+          <div class="fraud-settings-modal__panel fraud-note-modal__panel" role="dialog" aria-modal="true" aria-labelledby="fraud-note-modal-title">
+            <div class="fraud-settings-modal__head">
+              <div>
+                <h2 id="fraud-note-modal-title">New Internal Note</h2>
+                <p class="fraud-settings-modal__sub">Add an investigation note linked to a fraud case. Saved to the database for your team.</p>
+              </div>
+              <button type="button" class="fraud-ops__drawer-close" id="btn-fraud-note-close" aria-label="Close">×</button>
+            </div>
+            <form class="fraud-note-modal__body" id="fraud-note-form">
+              <label class="fraud-settings-field">
+                <span>Related Case <em>(required)</em></span>
+                <select id="fraud-note-case-select" required>
+                  <option value="">Select a case…</option>
+                </select>
+              </label>
+              <label class="fraud-settings-field">
+                <span>Note <em>(required)</em></span>
+                <textarea id="fraud-note-content" rows="6" placeholder="Investigation details, IOCs, customer contact, escalation context…" required></textarea>
+              </label>
+            </form>
+            <div class="fraud-settings-modal__foot">
+              <button type="button" class="fraud-settings-btn fraud-settings-btn--ghost" id="btn-fraud-note-cancel">Cancel</button>
+              <button type="submit" form="fraud-note-form" class="fraud-settings-btn fraud-settings-btn--primary" id="btn-fraud-note-save">Save Note</button>
+            </div>
+          </div>
+        </div>
+
         <!-- SETTINGS MODAL -->
         <div class="fraud-settings-modal" id="fraud-settings-modal" hidden>
           <div class="fraud-settings-modal__backdrop" id="fraud-settings-backdrop"></div>
