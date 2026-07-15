@@ -67,6 +67,45 @@ riskBreakdown values are 0-100 risk scores per category (higher = more dangerous
 actionChecklist: 4-6 concrete steps. If safe, use positive cautions.
 detectedBanks: Saudi banks if impersonated (Samba, SNB, Al Rajhi, Riyad Bank, Alinma, etc.) or empty array.`;
 
+const URL_ANALYZE_PROMPT = `You are ByteShield, a URL phishing and fraud analyzer for users in Saudi Arabia.
+
+Analyze the given URL for phishing, typosquatting, credential harvesting, fake login pages, and impersonation of Saudi banks (Alinma, SNB, Al Rajhi, Riyad Bank, etc.).
+
+Consider: domain age signals, HTTPS, suspicious TLDs, homoglyphs, IP-based hosts, URL shorteners, @- tricks, and lookalike domains.
+
+Scoring rubric (be consistent):
+- 0-30 = Low Risk / Safe
+- 31-60 = Medium Risk / Suspicious
+- 61-100 = High Risk
+
+Return user-facing text in Arabic. JSON field names stay in English.
+
+Return ONLY valid JSON:
+{
+  "riskScore": 0,
+  "classification": "Low Risk | Medium Risk | High Risk",
+  "statusMessage": "Large status with emoji in Arabic",
+  "shortExplanation": "2-3 sentences in natural Arabic",
+  "confidence": 85,
+  "reasoning": ["reason 1", "reason 2"],
+  "actionChecklist": ["action 1", "action 2", "action 3", "action 4"],
+  "riskBreakdown": {
+    "senderAuthenticity": 0,
+    "languageAnalysis": 0,
+    "linkSafety": 0,
+    "financialFraudIndicators": 0,
+    "socialEngineeringIndicators": 0,
+    "urgencyDetection": 0
+  },
+  "detailedAnalysis": "Full paragraph in Arabic",
+  "detectedBanks": [],
+  "bankAdvice": "",
+  "threatType": "phishing | banking_fraud | general",
+  "securityTips": ["tip 1", "tip 2", "tip 3"]
+}
+
+actionChecklist: 4-6 concrete Arabic steps tailored to this URL. securityTips: practical Arabic tips.`;
+
 const VISION_EXTRA = `You are analyzing visual content: a screenshot, photo, or scanned PDF page.
 
 Read all visible text carefully (Arabic and English). Note logos, bank names, messaging apps (WhatsApp, SMS, email), URLs, phone numbers, urgency language, OTP/password requests, and fake official branding.
@@ -384,10 +423,65 @@ function recordAnalysisIncident(text, data) {
   }
 }
 
+const RISK_BREAKDOWN_KEYS = [
+  "senderAuthenticity",
+  "languageAnalysis",
+  "linkSafety",
+  "financialFraudIndicators",
+  "socialEngineeringIndicators",
+  "urgencyDetection",
+];
+
+function scoreToClassification(score) {
+  const n = Number(score) || 0;
+  if (n <= 30) return "Low Risk";
+  if (n <= 60) return "Medium Risk";
+  return "High Risk";
+}
+
+function averageNumbers(a, b) {
+  const x = Number(a);
+  const y = Number(b);
+  if (Number.isFinite(x) && Number.isFinite(y)) return Math.round((x + y) / 2);
+  if (Number.isFinite(x)) return Math.round(x);
+  if (Number.isFinite(y)) return Math.round(y);
+  return 0;
+}
+
+function averageRiskBreakdown(mlBreakdown, aiBreakdown, fallbackScore) {
+  const out = {};
+  for (const key of RISK_BREAKDOWN_KEYS) {
+    const mlVal = mlBreakdown?.[key];
+    const aiVal = aiBreakdown?.[key];
+    if (Number.isFinite(mlVal) && Number.isFinite(aiVal)) {
+      out[key] = Math.round((mlVal + aiVal) / 2);
+    } else if (Number.isFinite(aiVal)) {
+      out[key] = Math.round(aiVal);
+    } else if (Number.isFinite(mlVal)) {
+      out[key] = Math.round(mlVal);
+    } else {
+      out[key] = Math.round(fallbackScore);
+    }
+  }
+  return out;
+}
+
+async function analyzeUrlWithOpenAi(url) {
+  if (!openai) return null;
+  try {
+    return await callOpenAiJson(
+      URL_ANALYZE_PROMPT,
+      `Analyze this URL for phishing and financial fraud:\n${url}`,
+    );
+  } catch (error) {
+    console.warn("OpenAI URL analysis failed:", error.message);
+    return null;
+  }
+}
+
 function buildMlUrlReport(url, ml) {
   const score = Number(ml.riskScore) || 0;
-  const tier =
-    score <= 30 ? "Low Risk" : score <= 60 ? "Medium Risk" : "High Risk";
+  const tier = scoreToClassification(score);
   const probability = Number(ml.phishingProbability) || 0;
   const confidence = Number(ml.confidence) || Math.round(Math.abs(probability - 0.5) * 200);
 
@@ -476,6 +570,68 @@ function buildMlUrlReport(url, ml) {
   };
 }
 
+function buildHybridUrlReport(url, ml, ai) {
+  const mlReport = buildMlUrlReport(url, ml);
+  if (!ai) return mlReport;
+
+  const mlScore = Number(ml.riskScore) || 0;
+  const aiScore = Number(ai.riskScore) || 0;
+  const combinedScore = averageNumbers(mlScore, aiScore);
+  const tier = scoreToClassification(combinedScore);
+  const probability = Number(ml.phishingProbability) || 0;
+
+  const reasoning = [
+    ...(Array.isArray(ai.reasoning) && ai.reasoning.length ? ai.reasoning : mlReport.reasoning),
+    `نموذج التعلم العميق (phishing_dl_model): ${mlScore}/100 — احتمال تصيد ${Math.round(probability * 100)}%`,
+    `تحليل OpenAI (${getOpenAiModel()}): ${aiScore}/100`,
+  ].slice(0, 6);
+
+  const detailedAnalysis = [
+    ai.detailedAnalysis || ai.shortExplanation || mlReport.shortExplanation,
+    "",
+    `الرابط: ${url}`,
+    `الدرجة المدمجة: ${combinedScore}/100 (متوسط ML ${mlScore} + OpenAI ${aiScore})`,
+    "",
+    "ما الذي لاحظناه:",
+    ...reasoning.map((line) => `• ${line}`),
+  ].join("\n");
+
+  return {
+    riskScore: combinedScore,
+    classification: tier,
+    statusMessage: ai.statusMessage || mlReport.statusMessage,
+    shortExplanation:
+      ai.shortExplanation ||
+      `متوسط تحليلين: نموذج التعلم العميق (${mlScore}/100) وOpenAI (${aiScore}/100). ${mlReport.shortExplanation}`,
+    confidence: averageNumbers(mlReport.confidence, ai.confidence),
+    reasoning,
+    actionChecklist:
+      Array.isArray(ai.actionChecklist) && ai.actionChecklist.length
+        ? ai.actionChecklist
+        : mlReport.actionChecklist,
+    riskBreakdown: averageRiskBreakdown(mlReport.riskBreakdown, ai.riskBreakdown, combinedScore),
+    detailedAnalysis,
+    detectedBanks: Array.isArray(ai.detectedBanks) ? ai.detectedBanks : [],
+    bankAdvice: ai.bankAdvice || "",
+    threatType: ai.threatType || mlReport.threatType,
+    securityTips:
+      Array.isArray(ai.securityTips) && ai.securityTips.length
+        ? ai.securityTips
+        : mlReport.securityTips,
+    ml: {
+      model: ml.model,
+      phishingProbability: ml.phishingProbability,
+      isPhishing: ml.isPhishing,
+      riskScore: mlScore,
+    },
+    openAi: {
+      model: getOpenAiModel(),
+      riskScore: aiScore,
+    },
+    source: "hybrid",
+  };
+}
+
 app.post("/predict-url", async (req, res) => {
   try {
     const { url } = req.body;
@@ -487,7 +643,12 @@ app.post("/predict-url", async (req, res) => {
       });
     }
 
-    const ml = await runUrlMlPrediction(String(url).trim());
+    const normalizedUrl = String(url).trim();
+
+    const [ml, ai] = await Promise.all([
+      runUrlMlPrediction(normalizedUrl),
+      analyzeUrlWithOpenAi(normalizedUrl),
+    ]);
 
     if (!ml.success) {
       return res.status(500).json({
@@ -496,8 +657,8 @@ app.post("/predict-url", async (req, res) => {
       });
     }
 
-    const data = buildMlUrlReport(String(url).trim(), ml);
-    recordAnalysisIncident(String(url).trim(), data);
+    const data = buildHybridUrlReport(normalizedUrl, ml, ai);
+    recordAnalysisIncident(normalizedUrl, data);
 
     res.json({
       success: true,

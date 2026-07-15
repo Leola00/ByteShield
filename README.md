@@ -213,7 +213,7 @@ ByteShield/
 |----------|--------|---------|
 | `/analyze` | POST | AI analysis of text (messages, emails) |
 | `/analyze-file` | POST | AI analysis of uploaded image or PDF |
-| `/predict-url` | POST | URL phishing detection (Python ML) |
+| `/predict-url` | POST | URL phishing detection (TensorFlow ML + OpenAI hybrid) |
 | `/api/financial-forecast` | POST | Financial risk ML forecast |
 | `/chat` | POST | Follow-up questions about a scan |
 | `/soc-report` | POST | SOC-style incident report |

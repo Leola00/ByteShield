@@ -1497,7 +1497,7 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
 
     btnScan.classList.add('scanning');
     btnScan.textContent = activeTab === 'url'
-      ? '\u062c\u0627\u0631\u064a \u062a\u062d\u0644\u064a\u0644 \u0627\u0644\u0631\u0627\u0628\u0637\u2026 (\u0642\u062f \u064a\u0633\u062a\u063a\u0631\u0642 30 \u062b)'
+      ? '\u062c\u0627\u0631\u064a \u062a\u062d\u0644\u064a\u0644 \u0627\u0644\u0631\u0627\u0628\u0637 (ML + AI)\u2026'
       : activeTab === 'screenshot'
         ? '\u062c\u0627\u0631\u064a \u062a\u062d\u0644\u064a\u0644 \u0627\u0644\u0645\u0644\u0641\u2026 (\u0642\u062f \u064a\u0633\u062a\u063a\u0631\u0642 \u062f\u0642\u064a\u0642\u0629)'
       : '\u062c\u0627\u0631\u064a \u0627\u0644\u062a\u062d\u0644\u064a\u0644\u2026';
@@ -1550,7 +1550,7 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
         ]
           .map((x) => String(x || '').trim())
           .find((x) => x && !/^\[ملف:/.test(x)) || input.text;
-        const report = normalizeAiReport(ai, score, evidenceText);
+        const report = normalizeAiReport(ai, score, evidenceText, input.type);
         finalizeAnalysis(evidenceText, input.type, report);
         return;
       }
@@ -1616,7 +1616,10 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
 
       const ai = result.data;
       const score = Number(ai.riskScore) || 0;
-      const report = normalizeAiReport(ai, score, input.text);
+      const report = normalizeAiReport(ai, score, input.text, input.type);
+      if (ai.source === 'hybrid') {
+        showToast('تم دمج تحليل نموذج ML وOpenAI');
+      }
       finalizeAnalysis(input.text, input.type, report);
     } catch (error) {
       console.error(error);
@@ -1627,16 +1630,17 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     }
   }
 
-  function normalizeAiReport(ai, score, text) {
+  function normalizeAiReport(ai, score, text, contentType) {
     const tier = getScoreTier(score);
     const reasoning = Array.isArray(ai.reasoning) ? ai.reasoning
       : Array.isArray(ai.reasons) ? ai.reasons : [];
     const breakdown = ai.riskBreakdown || {};
+    const type = contentType || lastContentType || 'Message';
     return {
       score,
       tier,
       statusMessage: ai.statusMessage || tier.defaultMessage,
-      shortExplanation: ai.shortExplanation || buildExplanation(text, reasoning, score, 'Message'),
+      shortExplanation: ai.shortExplanation || buildExplanation(text, reasoning, score, type),
       confidence: Number(ai.confidence) || Math.min(98, Math.max(55, score + 10)),
       reasoning,
       actionChecklist: Array.isArray(ai.actionChecklist) && ai.actionChecklist.length
@@ -1655,6 +1659,9 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
       threatType: ai.threatType || 'phishing',
       securityTips: Array.isArray(ai.securityTips) && ai.securityTips.length
         ? ai.securityTips : getDefaultTips(ai.threatType || 'phishing'),
+      source: ai.source || 'openai',
+      ml: ai.ml || null,
+      openAi: ai.openAi || null,
     };
   }
 
