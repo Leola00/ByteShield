@@ -6704,6 +6704,17 @@ body {
   border: 1px solid rgba(15, 29, 53, 0.1);
 }
 
+.fraud-detail__shot-missing {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: #fff7ed;
+  border: 1px dashed rgba(194, 120, 60, 0.35);
+  color: #9a3412;
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
 .fraud-copilot__hint {
   margin: 0 0 10px;
   color: var(--text-muted);

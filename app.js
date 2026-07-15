@@ -122,10 +122,13 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
   ];
 
   function getApiUrl(path) {
-    const { protocol, hostname, port } = window.location;
-    if (port === '3000') return path;
-    const host = hostname || 'localhost';
-    return `http://${host}:3000${path}`;
+    const { protocol, hostname } = window.location;
+    // Opened as a local file — talk to the backend on this machine
+    if (protocol === 'file:' || !hostname) {
+      return `http://localhost:3000${path}`;
+    }
+    // Same origin (localhost, tunnel, or hosted site) — Express serves UI + API together
+    return path;
   }
 
   function getAnalyzeUrl() {
@@ -626,6 +629,7 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
   const fraudDetailIocs = document.getElementById('fraud-detail-iocs');
   const fraudDetailScreenshotWrap = document.getElementById('fraud-detail-screenshot-wrap');
   const fraudDetailScreenshot = document.getElementById('fraud-detail-screenshot');
+  const fraudDetailScreenshotMissing = document.getElementById('fraud-detail-screenshot-missing');
   const fraudCampaignsList = document.getElementById('fraud-campaigns-list');
   const fraudSearch = document.getElementById('fraud-search');
   const fraudCategoryFilter = document.getElementById('fraud-category-filter');
@@ -1176,11 +1180,17 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     lastScreenshotDataUrl = null;
 
     if (isImage) {
-      const reader = new FileReader();
-      reader.onload = () => {
-        lastScreenshotDataUrl = typeof reader.result === 'string' ? reader.result : null;
-      };
-      reader.readAsDataURL(file);
+      compressImageFile(file)
+        .then((dataUrl) => {
+          lastScreenshotDataUrl = dataUrl;
+        })
+        .catch(() => {
+          const reader = new FileReader();
+          reader.onload = () => {
+            lastScreenshotDataUrl = typeof reader.result === 'string' ? reader.result : null;
+          };
+          reader.readAsDataURL(file);
+        });
       previewImg.src = URL.createObjectURL(file);
       previewImg.hidden = false;
       if (uploadFileInfo) uploadFileInfo.hidden = true;
@@ -1193,6 +1203,52 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
 
     uploadEmpty.hidden = true;
     uploadPreview.hidden = false;
+  }
+
+  /** Compress screenshots so Fraud Ops can store/show them reliably */
+  function compressImageFile(file, maxWidth = 1200, quality = 0.72) {
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const scale = Math.min(1, maxWidth / Math.max(img.width, 1));
+          const w = Math.max(1, Math.round(img.width * scale));
+          const h = Math.max(1, Math.round(img.height * scale));
+          const canvas = document.createElement('canvas');
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, w, h);
+          URL.revokeObjectURL(url);
+          resolve(canvas.toDataURL('image/jpeg', quality));
+        } catch (err) {
+          URL.revokeObjectURL(url);
+          reject(err);
+        }
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error('Could not read image'));
+      };
+      img.src = url;
+    });
+  }
+
+  async function ensureScreenshotDataUrl() {
+    if (lastScreenshotDataUrl) return lastScreenshotDataUrl;
+    if (!screenshotFile || !screenshotFile.type.startsWith('image/')) return null;
+    try {
+      lastScreenshotDataUrl = await compressImageFile(screenshotFile);
+    } catch {
+      lastScreenshotDataUrl = await new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : null);
+        reader.onerror = () => resolve(null);
+        reader.readAsDataURL(screenshotFile);
+      });
+    }
+    return lastScreenshotDataUrl;
   }
 
   function clearScreenshot() {
@@ -1476,8 +1532,18 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
 
         const ai = result.data;
         const score = Number(ai.riskScore) || 0;
-        const report = normalizeAiReport(ai, score, input.text);
-        finalizeAnalysis(input.text, input.type, report);
+        await ensureScreenshotDataUrl();
+        // Prefer OCR / AI-readable text so Fraud Ops "Customer Report" is not empty
+        const evidenceText = [
+          ai.detailedAnalysis,
+          ai.shortExplanation,
+          Array.isArray(ai.reasoning) ? ai.reasoning.join('\n') : '',
+          input.text,
+        ]
+          .map((x) => String(x || '').trim())
+          .find((x) => x && !/^\[ملف:/.test(x)) || input.text;
+        const report = normalizeAiReport(ai, score, evidenceText);
+        finalizeAnalysis(evidenceText, input.type, report);
         return;
       }
 
@@ -2081,6 +2147,7 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     }
 
     try {
+      await ensureScreenshotDataUrl();
       const response = await fetch(getApiUrl('/api/cases'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -3683,6 +3750,15 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     if (fraudModifyPanel) fraudModifyPanel.hidden = true;
     openFraudDrawer();
 
+    if (fraudDetailEmpty) {
+      fraudDetailEmpty.hidden = false;
+      const h = fraudDetailEmpty.querySelector('h3');
+      const p = fraudDetailEmpty.querySelector('p');
+      if (h) h.textContent = 'Loading case…';
+      if (p) p.textContent = 'Loading AI investigation package. This can take a few seconds for screenshot cases.';
+    }
+    if (fraudDetailBody) fraudDetailBody.hidden = true;
+
     try {
       const analystName =
         (typeof fraudSettings !== 'undefined' && fraudSettings.fullName) ||
@@ -3694,12 +3770,45 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
       );
       const result = await response.json();
       if (!response.ok || !result.success) throw new Error(result.error || 'Case not found');
-      const c = result.case;
+      let c = result.case;
+
+      // If AI package is still incomplete, force regenerate once
+      const invCheck = c.investigation || {};
+      const incomplete = !(
+        invCheck.executiveInvestigationSummary &&
+        invCheck.technicalInvestigationSummary &&
+        invCheck.customerNotificationDraft &&
+        invCheck.managementSummary
+      );
+      if (incomplete) {
+        if (fraudDetailEmpty?.querySelector('p')) {
+          fraudDetailEmpty.querySelector('p').textContent =
+            'Generating full AI investigation (summary, recommendation, docs)…';
+        }
+        try {
+          const regen = await fetch(getApiUrl(`/api/cases/${encodeURIComponent(id)}/investigate`), {
+            method: 'POST',
+          });
+          const regenJson = await regen.json();
+          if (regen.ok && regenJson.success && regenJson.case) c = regenJson.case;
+        } catch {
+          /* keep stub */
+        }
+      }
 
       selectedFraudCase = c;
       const inv = c.investigation || {};
 
-      if (fraudDetailEmpty) fraudDetailEmpty.hidden = true;
+      if (fraudDetailEmpty) {
+        fraudDetailEmpty.hidden = true;
+        const h = fraudDetailEmpty.querySelector('h3');
+        const p = fraudDetailEmpty.querySelector('p');
+        if (h) h.textContent = 'Select a case';
+        if (p) {
+          p.textContent =
+            'Choose a reported case from the queue. AI investigation is already prepared — review and decide.';
+        }
+      }
       if (fraudDetailBody) fraudDetailBody.hidden = false;
 
       if (fraudDetailId) fraudDetailId.textContent = c.id;
@@ -3722,14 +3831,41 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
       if (fraudDetailRisk) fraudDetailRisk.textContent = `${c.fraudProbability || 0}%`;
       if (fraudDetailThreat) fraudDetailThreat.textContent = c.contentType || '\u2014';
       if (fraudDetailSummary) fraudDetailSummary.textContent = inv.aiInvestigationSummary || c.aiExplanation || '\u2014';
-      if (fraudDetailEvidence) fraudDetailEvidence.textContent = c.content || '\u2014';
+
+      // Customer report: for screenshots, prefer AI text over "[ملف: ...]" placeholder
+      const isScreenshot =
+        String(c.contentType || c.source || '').toLowerCase().includes('screenshot') ||
+        String(c.contentType || c.source || '').toLowerCase().includes('ملف');
+      let evidenceText = String(c.content || '').trim();
+      if (
+        !evidenceText ||
+        /^\[ملف:/.test(evidenceText) ||
+        /^\[file:/i.test(evidenceText)
+      ) {
+        evidenceText =
+          inv.aiInvestigationSummary ||
+          c.aiExplanation ||
+          (Array.isArray(c.reasoning) ? c.reasoning.join('\n') : '') ||
+          evidenceText ||
+          (isScreenshot ? 'Screenshot submitted — image evidence below.' : '\u2014');
+      }
+      if (fraudDetailEvidence) fraudDetailEvidence.textContent = evidenceText;
 
       if (fraudDetailScreenshotWrap && fraudDetailScreenshot) {
         if (c.screenshotDataUrl) {
           fraudDetailScreenshot.src = c.screenshotDataUrl;
+          fraudDetailScreenshot.hidden = false;
+          if (fraudDetailScreenshotMissing) fraudDetailScreenshotMissing.hidden = true;
+          fraudDetailScreenshotWrap.hidden = false;
+        } else if (isScreenshot) {
+          fraudDetailScreenshot.removeAttribute('src');
+          fraudDetailScreenshot.hidden = true;
+          if (fraudDetailScreenshotMissing) fraudDetailScreenshotMissing.hidden = false;
           fraudDetailScreenshotWrap.hidden = false;
         } else {
           fraudDetailScreenshot.removeAttribute('src');
+          fraudDetailScreenshot.hidden = false;
+          if (fraudDetailScreenshotMissing) fraudDetailScreenshotMissing.hidden = true;
           fraudDetailScreenshotWrap.hidden = true;
         }
       }

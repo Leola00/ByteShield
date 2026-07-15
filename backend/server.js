@@ -827,13 +827,26 @@ app.post("/api/cases/:id/investigate", async (req, res) => {
     const package_ = await investigation.generateInvestigation(openai, callOpenAiJson, found);
     let saved;
     if (fraudCasesService.isConfigured) {
-      saved = await fraudCasesService.patchCase(found.id, {
-        investigation: package_,
-        status: found.status === "Closed" ? "Closed" : "Under Review",
-        assigned_to: found.assignedTo || "Analyst",
-        ai_summary: package_?.aiInvestigationSummary || found.aiSummary,
-        ai_recommendation: package_?.recommendation?.action || found.aiRecommendation,
-      });
+      try {
+        saved = await fraudCasesService.patchCase(found.id, {
+          investigation: package_,
+          status: found.status === "Closed" ? "Closed" : "Under Review",
+          assigned_to: found.assignedTo || "Analyst",
+          ai_summary: package_?.aiInvestigationSummary || found.aiSummary,
+          ai_recommendation: package_?.recommendation?.action || found.aiRecommendation,
+        });
+      } catch (saveErr) {
+        console.warn("Investigate save failed:", saveErr.message);
+        saved = {
+          ...found,
+          investigation: package_,
+          status: found.status === "Closed" ? "Closed" : "Under Review",
+          assignedTo: found.assignedTo || "Analyst",
+          aiExplanation: package_?.aiInvestigationSummary || found.aiExplanation,
+          aiSummary: package_?.aiInvestigationSummary || found.aiSummary,
+          aiRecommendation: package_?.recommendation?.action || found.aiRecommendation,
+        };
+      }
     } else {
       saved = await casesStore.updateCase(found.id, (c) => ({
         ...c,

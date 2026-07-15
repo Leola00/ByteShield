@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#0a1628" />
   <meta name="description" content="مصرف الإنماء – ByteShield: فحص ذكي للاحتيال والتصيد الاحتيالي" />
   <title>الإنماء | ByteShield</title>
-  <link rel="stylesheet" href="styles.css?v=20" />
+  <link rel="stylesheet" href="styles.css?v=21" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -1056,6 +1056,9 @@
               <pre id="fraud-detail-evidence" class="fraud-detail__evidence"></pre>
               <div id="fraud-detail-screenshot-wrap" class="fraud-detail__shot" hidden>
                 <img id="fraud-detail-screenshot" alt="Customer screenshot" />
+                <p id="fraud-detail-screenshot-missing" class="fraud-detail__shot-missing" hidden>
+                  Screenshot was not stored with this case. Analyze and re-submit the image to attach it.
+                </p>
               </div>
             </div>
 
@@ -1502,6 +1505,6 @@
   <script src="js/supabase-config.js?v=2"></script>
   <script src="js/fraud-ops-live.js?v=1"></script>
   <script src="playbooks-data.js?v=2"></script>
-  <script src="app.js?v=26"></script>
+  <script src="app.js?v=29"></script>
 </body>
 </html>

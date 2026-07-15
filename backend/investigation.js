@@ -104,6 +104,15 @@ async function generateInvestigation(openai, callOpenAiJson, caseRecord) {
     return buildLocalInvestigation(caseRecord);
   }
 
+  const evidenceParts = [
+    String(caseRecord.content || "").trim(),
+    caseRecord.aiExplanation ? `First-line AI: ${caseRecord.aiExplanation}` : "",
+    Array.isArray(caseRecord.reasoning) && caseRecord.reasoning.length
+      ? `Reasoning:\n- ${caseRecord.reasoning.join("\n- ")}`
+      : "",
+    caseRecord.screenshotDataUrl ? "Evidence includes a customer screenshot image." : "",
+  ].filter(Boolean);
+
   const userPayload = {
     caseId: caseRecord.id,
     contentType: caseRecord.contentType,
@@ -112,7 +121,7 @@ async function generateInvestigation(openai, callOpenAiJson, caseRecord) {
     aiExplanation: caseRecord.aiExplanation,
     reasoning: caseRecord.reasoning,
     iocs: caseRecord.iocs,
-    content: String(caseRecord.content || "").slice(0, 6000),
+    content: evidenceParts.join("\n\n").slice(0, 6000),
   };
 
   try {
@@ -165,4 +174,14 @@ module.exports = {
   buildLocalInvestigation,
   generateInvestigation,
   buildCaseContext,
+  isInvestigationComplete(inv) {
+    if (!inv || typeof inv !== "object") return false;
+    return Boolean(
+      inv.executiveInvestigationSummary &&
+        inv.technicalInvestigationSummary &&
+        inv.customerNotificationDraft &&
+        inv.managementSummary &&
+        inv.recommendation?.action,
+    );
+  },
 };

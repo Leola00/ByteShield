@@ -28,6 +28,7 @@ backend/byteshield_incidents.json
 backend/byteshield_soc.db
 backend/fraud_cases.json
 backend/fraud_campaigns.json
+backend/data/case-overrides.json
 
 __pycache__/
 *.pyc

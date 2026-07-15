@@ -143,11 +143,57 @@ function createFraudOpsRouter({ casesStore, investigation, openai, callOpenAiJso
           return res.status(404).json({ success: false, error: "Case not found" });
         }
         if (found.status === "Pending Review") {
-          found = await fraudCases.patchCase(found.id, {
-            status: "Under Review",
-            assigned_to: assignedTo,
-          });
+          try {
+            found = await fraudCases.patchCase(found.id, {
+              status: "Under Review",
+              assigned_to: assignedTo,
+            });
+          } catch (assignErr) {
+            // Still open the case if assign/update fails (e.g. missing updated_at column)
+            console.warn("Auto-assign skipped:", assignErr.message);
+            found = {
+              ...found,
+              status: found.status || "Pending Review",
+              assignedTo: found.assignedTo || assignedTo,
+            };
+          }
         }
+
+        // Ensure full AI investigation package (screenshot cases often only had a stub)
+        if (
+          investigation &&
+          typeof investigation.generateInvestigation === "function" &&
+          !investigation.isInvestigationComplete(found.investigation)
+        ) {
+          try {
+            const package_ = await investigation.generateInvestigation(
+              openai,
+              callOpenAiJson,
+              found,
+            );
+            try {
+              found = await fraudCases.patchCase(found.id, {
+                investigation: package_,
+                ai_summary: package_?.aiInvestigationSummary || found.aiSummary,
+                ai_recommendation:
+                  package_?.recommendation?.action || found.aiRecommendation,
+              });
+            } catch (saveErr) {
+              console.warn("Could not persist investigation:", saveErr.message);
+              found = {
+                ...found,
+                investigation: package_,
+                aiExplanation: package_?.aiInvestigationSummary || found.aiExplanation,
+                aiSummary: package_?.aiInvestigationSummary || found.aiSummary,
+                aiRecommendation:
+                  package_?.recommendation?.action || found.aiRecommendation,
+              };
+            }
+          } catch (invErr) {
+            console.warn("On-open investigation failed:", invErr.message);
+          }
+        }
+
         return res.json({ success: true, case: found });
       }
 
@@ -160,7 +206,11 @@ function createFraudOpsRouter({ casesStore, investigation, openai, callOpenAiJso
         return res.status(404).json({ success: false, error: "Case not found" });
       }
       if (found.status === "Pending Review") {
-        found = await casesStore.markUnderReview(found.id, assignedTo);
+        try {
+          found = await casesStore.markUnderReview(found.id, assignedTo);
+        } catch (assignErr) {
+          console.warn("Auto-assign skipped:", assignErr.message);
+        }
       }
       res.json({ success: true, case: found });
     } catch (error) {
@@ -212,12 +262,24 @@ function createFraudOpsRouter({ casesStore, investigation, openai, callOpenAiJso
               callOpenAiJson,
               saved,
             );
-            saved = await fraudCases.patchCase(saved.id, {
-              investigation: package_,
-              ai_summary: package_?.aiInvestigationSummary || saved.aiSummary,
-              ai_recommendation:
-                package_?.recommendation?.action || saved.aiRecommendation,
-            });
+            try {
+              saved = await fraudCases.patchCase(saved.id, {
+                investigation: package_,
+                ai_summary: package_?.aiInvestigationSummary || saved.aiSummary,
+                ai_recommendation:
+                  package_?.recommendation?.action || saved.aiRecommendation,
+              });
+            } catch (saveErr) {
+              console.warn("Investigation save failed:", saveErr.message);
+              saved = {
+                ...saved,
+                investigation: package_,
+                aiExplanation: package_?.aiInvestigationSummary || saved.aiExplanation,
+                aiSummary: package_?.aiInvestigationSummary || saved.aiSummary,
+                aiRecommendation:
+                  package_?.recommendation?.action || saved.aiRecommendation,
+              };
+            }
           } catch (invErr) {
             console.warn("Investigation enrich failed:", invErr.message);
           }

@@ -6,14 +6,64 @@
  * internal_notes, created_at
  *
  * Extra UI fields (investigation, decision, etc.) are stored in iocs._meta
+ *
+ * If Supabase UPDATE fails (e.g. missing updated_at trigger column),
+ * decision/status patches are kept in a local override file so Approve/Reject still work.
  */
+const fs = require("fs");
+const path = require("path");
 const crypto = require("crypto");
 const { getSupabase, isConfigured } = require("../supabase");
+
+const OVERRIDES_PATH = path.join(__dirname, "..", "data", "case-overrides.json");
 
 function generateCaseId() {
   const yyyymmdd = new Date().toISOString().slice(0, 10).replace(/-/g, "");
   const rand = crypto.randomBytes(2).toString("hex").toUpperCase();
   return `FO-${yyyymmdd}-${rand}`;
+}
+
+function readOverrides() {
+  try {
+    if (!fs.existsSync(OVERRIDES_PATH)) return {};
+    return JSON.parse(fs.readFileSync(OVERRIDES_PATH, "utf8") || "{}");
+  } catch {
+    return {};
+  }
+}
+
+function writeOverride(caseId, patch) {
+  const all = readOverrides();
+  all[caseId] = {
+    ...(all[caseId] || {}),
+    ...patch,
+    updatedAt: new Date().toISOString(),
+  };
+  fs.mkdirSync(path.dirname(OVERRIDES_PATH), { recursive: true });
+  fs.writeFileSync(OVERRIDES_PATH, JSON.stringify(all, null, 2), "utf8");
+  return all[caseId];
+}
+
+function applyOverrideToCase(mapped) {
+  if (!mapped?.id) return mapped;
+  const ov = readOverrides()[mapped.id];
+  if (!ov) return mapped;
+  const next = { ...mapped, ...ov };
+  if (ov.investigation) next.investigation = ov.investigation;
+  if (ov.decision && typeof ov.decision === "object") {
+    next.decision = ov.decision;
+    next.decisionLabel = ov.decision.outcome || ov.decisionLabel;
+  }
+  if (ov.status) next.status = ov.status;
+  if (ov.assignedTo !== undefined) next.assignedTo = ov.assignedTo;
+  if (ov.reviewedBy !== undefined) next.reviewedBy = ov.reviewedBy;
+  if (ov.reviewedAt !== undefined) next.reviewedAt = ov.reviewedAt;
+  if (ov.aiSummary) {
+    next.aiSummary = ov.aiSummary;
+    next.aiExplanation = ov.aiSummary;
+  }
+  if (ov.aiRecommendation) next.aiRecommendation = ov.aiRecommendation;
+  return next;
 }
 
 function parseIocs(value) {
@@ -58,7 +108,7 @@ function mapRow(row) {
     };
   }
 
-  return {
+  return applyOverrideToCase({
     id: row.case_id,
     uuid: row.id,
     caseId: row.case_id,
@@ -90,7 +140,7 @@ function mapRow(row) {
     internalNotes: row.internal_notes || null,
     reviewedBy: row.reviewed_by || null,
     reviewedAt: row.reviewed_at || null,
-  };
+  });
 }
 
 function buildInsertPayload(input = {}) {
@@ -204,6 +254,8 @@ async function patchCase(id, updates = {}) {
     throw err;
   }
 
+  // Only touch columns that exist on the live fraud_cases table.
+  // Decision / review / investigation live in iocs._meta (and local overrides as backup).
   const patch = {};
   if (updates.status !== undefined) patch.status = updates.status;
   if (updates.assigned_to !== undefined) patch.assigned_to = updates.assigned_to;
@@ -214,20 +266,20 @@ async function patchCase(id, updates = {}) {
   if (updates.ai_recommendation !== undefined) {
     patch.ai_recommendation = updates.ai_recommendation;
   }
-  if (updates.reviewed_by !== undefined) patch.reviewed_by = updates.reviewed_by;
-  if (updates.reviewedBy !== undefined) patch.reviewed_by = updates.reviewedBy;
-  if (updates.reviewed_at !== undefined) patch.reviewed_at = updates.reviewed_at;
-  if (updates.reviewedAt !== undefined) patch.reviewed_at = updates.reviewedAt;
-  if (updates.decision !== undefined && typeof updates.decision === "string") {
-    patch.decision = updates.decision;
-  }
-  if (updates.decision_payload !== undefined) patch.decision_payload = updates.decision_payload;
-  if (updates.decisionPayload !== undefined) patch.decision_payload = updates.decisionPayload;
+
+  const decisionMeta =
+    typeof updates.decision === "string"
+      ? updates.decisionPayload || updates.decision_payload || { outcome: updates.decision }
+      : updates.decision;
 
   const needsMeta =
     updates.investigation !== undefined ||
-    updates.decision !== undefined ||
-    updates.screenshotDataUrl !== undefined;
+    decisionMeta !== undefined ||
+    updates.screenshotDataUrl !== undefined ||
+    updates.reviewedBy !== undefined ||
+    updates.reviewed_by !== undefined ||
+    updates.reviewedAt !== undefined ||
+    updates.reviewed_at !== undefined;
 
   if (needsMeta) {
     const existing = await sb
@@ -238,9 +290,15 @@ async function patchCase(id, updates = {}) {
     const packed = parseIocs(existing.data?.iocs);
     const meta = { ...(packed._meta || {}) };
     if (updates.investigation !== undefined) meta.investigation = updates.investigation;
-    if (updates.decision !== undefined) meta.decision = updates.decision;
+    if (decisionMeta !== undefined) meta.decision = decisionMeta;
     if (updates.screenshotDataUrl !== undefined) {
       meta.screenshotDataUrl = updates.screenshotDataUrl;
+    }
+    if (updates.reviewedBy !== undefined || updates.reviewed_by !== undefined) {
+      meta.reviewedBy = updates.reviewedBy || updates.reviewed_by;
+    }
+    if (updates.reviewedAt !== undefined || updates.reviewed_at !== undefined) {
+      meta.reviewedAt = updates.reviewedAt || updates.reviewed_at;
     }
     packed._meta = meta;
     patch.iocs = packed;
@@ -261,13 +319,47 @@ async function patchCase(id, updates = {}) {
   query = isUuid ? query.eq("id", id) : query.eq("case_id", id);
 
   const { data, error } = await query.maybeSingle();
-  if (error) throw error;
-  if (!data) {
-    const err = new Error("Case not found");
-    err.status = 404;
-    throw err;
+  if (!error && data) return mapRow(data);
+
+  // Live DB often has a trigger on updated_at without the column — any UPDATE fails.
+  // Fall back to local overrides so Approve / Modify / Reject still work.
+  const msg = error?.message || "Update failed";
+  console.warn("Supabase patch failed, using local override:", msg);
+
+  const overridePatch = {
+    status: patch.status !== undefined ? patch.status : current.status,
+    assignedTo:
+      patch.assigned_to !== undefined ? patch.assigned_to : current.assignedTo,
+    reviewedBy:
+      updates.reviewedBy || updates.reviewed_by || current.reviewedBy || null,
+    reviewedAt:
+      updates.reviewedAt || updates.reviewed_at || current.reviewedAt || null,
+  };
+  if (updates.investigation !== undefined) {
+    overridePatch.investigation = updates.investigation;
   }
-  return mapRow(data);
+  if (decisionMeta !== undefined) {
+    overridePatch.decision = decisionMeta;
+    overridePatch.decisionLabel = decisionMeta.outcome || null;
+  }
+  if (updates.ai_summary !== undefined) overridePatch.aiSummary = updates.ai_summary;
+  if (updates.ai_recommendation !== undefined) {
+    overridePatch.aiRecommendation = updates.ai_recommendation;
+  }
+  if (patch.iocs) {
+    const meta = parseIocs(patch.iocs)._meta || {};
+    if (meta.investigation) overridePatch.investigation = meta.investigation;
+    if (meta.decision) {
+      overridePatch.decision = meta.decision;
+      overridePatch.decisionLabel = meta.decision.outcome || null;
+    }
+    if (meta.screenshotDataUrl) {
+      overridePatch.screenshotDataUrl = meta.screenshotDataUrl;
+    }
+  }
+
+  writeOverride(current.id, overridePatch);
+  return applyOverrideToCase({ ...current, ...overridePatch });
 }
 
 function computeStats(cases) {
@@ -307,6 +399,7 @@ async function applyCaseAction(id, { outcome, action, analystNote, reviewedBy, a
     action: action || "",
     analystNote: analystNote || "",
     decidedAt: now,
+    reviewedBy: reviewedBy || assignedTo || "Analyst",
   };
 
   let status = "Closed";
@@ -323,9 +416,7 @@ async function applyCaseAction(id, { outcome, action, analystNote, reviewedBy, a
     assigned_to: assignedTo || reviewedBy || undefined,
     reviewed_by: reviewedBy || assignedTo || null,
     reviewed_at: now,
-    decision: normalized,
-    decision_payload: decisionPayload,
-    decisionPayload,
+    decision: decisionPayload,
   });
 }
 
