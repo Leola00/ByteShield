@@ -60,10 +60,13 @@ Return ONLY valid JSON:
   "detectedBanks": ["Al Rajhi", "SNB"],
   "bankAdvice": "Arabic advice if a bank is impersonated, else empty string",
   "threatType": "phishing | banking_fraud | investment_scam | delivery_scam | social_engineering | general",
-  "securityTips": ["tip 1", "tip 2", "tip 3"]
+  "securityTips": ["tip 1", "tip 2", "tip 3"],
+  "extractedUrls": []
 }
 
 riskBreakdown values are 0-100 risk scores per category (higher = more dangerous).
+If the content contains NO URLs/links, set linkSafety to 0 and extractedUrls to [].
+If any URL is present, put EXACT full URL(s) in extractedUrls and set linkSafety to a real risk score for those links.
 actionChecklist: 4-6 concrete steps. If safe, use positive cautions.
 detectedBanks: Saudi banks if impersonated (Samba, SNB, Al Rajhi, Riyad Bank, Alinma, etc.) or empty array.`;
 
@@ -109,7 +112,13 @@ actionChecklist: 4-6 concrete Arabic steps tailored to this URL. securityTips: p
 const VISION_EXTRA = `You are analyzing visual content: a screenshot, photo, or scanned PDF page.
 
 Read all visible text carefully (Arabic and English). Note logos, bank names, messaging apps (WhatsApp, SMS, email), URLs, phone numbers, urgency language, OTP/password requests, and fake official branding.
-Evaluate whether the content is legitimate or a fraud/phishing attempt.`;
+Evaluate whether the content is legitimate or a fraud/phishing attempt.
+
+CRITICAL for extractedUrls:
+- Copy every URL exactly as shown in the image (full http/https links).
+- If no URL is visible, return extractedUrls: [].
+- Do NOT invent example URLs that are not in the image.
+- When a phishing link is visible, extractedUrls MUST include it and linkSafety MUST be a high risk score.`;
 
 const ALLOWED_FILE_TYPES = new Set([
   "image/jpeg",
@@ -149,10 +158,13 @@ Saudi resources you may cite:
 - Cybercrime reporting: 9200343222
 - Emergency: 911`;
 
-const PYTHON_BIN = process.env.PYTHON_BIN || "py";
+const PYTHON_BIN =
+  process.env.PYTHON_BIN || (process.platform === "win32" ? "py" : "python");
 const PYTHON_ARGS = (process.env.PYTHON_ARGS || "").trim()
   ? process.env.PYTHON_ARGS.trim().split(/\s+/).filter(Boolean)
-  : [];
+  : process.platform === "win32" && !process.env.PYTHON_ARGS && !process.env.PYTHON_BIN
+    ? ["-3"]
+    : [];
 const ML_PREDICT_SCRIPT = path.join(__dirname, "ml", "predict_url.py");
 const FINANCIAL_FORECAST_SCRIPT = path.join(__dirname, "ml", "predict_financial_risk.py");
 const SOC_REPORT_SCRIPT = path.join(__dirname, "app.py");
@@ -180,12 +192,12 @@ async function callOpenAiJson(systemPrompt, userContent) {
   return JSON.parse(content);
 }
 
-async function callOpenAiVision(userContentParts) {
+async function callOpenAiVision(userContentParts, systemPrompt) {
   const completion = await openai.chat.completions.create({
     model: process.env.OPENAI_VISION_MODEL || getOpenAiModel(),
     temperature: 0,
     messages: [
-      { role: "system", content: `${ANALYZE_PROMPT}\n\n${VISION_EXTRA}` },
+      { role: "system", content: systemPrompt || `${ANALYZE_PROMPT}\n\n${VISION_EXTRA}` },
       { role: "user", content: userContentParts },
     ],
     response_format: { type: "json_object" },
@@ -197,6 +209,80 @@ async function callOpenAiVision(userContentParts) {
   }
 
   return JSON.parse(content);
+}
+
+const OCR_EXTRACT_PROMPT = `You are an OCR and content-extraction engine. Read the provided image(s) precisely.
+
+Return ONLY valid JSON:
+{
+  "visibleText": "ALL text visible in the image, transcribed exactly (keep Arabic and English as-is, preserve line breaks with \\n)",
+  "extractedUrls": ["every full URL exactly as shown, or [] if none"],
+  "sender": "sender name/number/handle if visible, else empty string",
+  "channel": "WhatsApp | SMS | Email | Web | Unknown",
+  "brandsSeen": ["any bank/company/brand names or logos visible"],
+  "hasOtpOrPasswordRequest": false,
+  "notes": "short note of visual cues: logos, urgency, fake branding, buttons"
+}
+
+Rules:
+- Transcribe text verbatim; do NOT summarize or translate.
+- Copy URLs exactly (reconstruct full link if wrapped). If none, extractedUrls = [].
+- Do NOT invent text or URLs that are not visible.`;
+
+function buildAnalysisInputFromExtraction(extraction) {
+  const parts = [];
+  if (extraction.channel && extraction.channel !== "Unknown") {
+    parts.push(`[Channel: ${extraction.channel}]`);
+  }
+  if (extraction.sender) parts.push(`[Sender: ${extraction.sender}]`);
+  if (Array.isArray(extraction.brandsSeen) && extraction.brandsSeen.length) {
+    parts.push(`[Brands/logos visible: ${extraction.brandsSeen.join(", ")}]`);
+  }
+  if (extraction.hasOtpOrPasswordRequest) {
+    parts.push("[Visible request for OTP/password/verification code]");
+  }
+  if (Array.isArray(extraction.extractedUrls) && extraction.extractedUrls.length) {
+    parts.push(`[Links visible: ${extraction.extractedUrls.join(" , ")}]`);
+  }
+  if (extraction.notes) parts.push(`[Visual cues: ${extraction.notes}]`);
+  parts.push("");
+  parts.push("Content transcribed from the uploaded image/screenshot:");
+  parts.push(String(extraction.visibleText || "").trim() || "(no readable text)");
+  return parts.join("\n");
+}
+
+// Two-step image analysis: OCR/extract → score the extracted content like a text message.
+// This makes each image get a real, content-driven score instead of a generic vision score.
+async function analyzeImageParts(imageParts, ocrHint) {
+  const extraction = await callOpenAiVision(
+    [
+      {
+        type: "text",
+        text:
+          ocrHint ||
+          "Extract ALL visible text and every URL from this image. Do not score, just transcribe.",
+      },
+      ...imageParts,
+    ],
+    OCR_EXTRACT_PROMPT,
+  );
+
+  const visibleText = String(extraction.visibleText || "").trim();
+  const analysisInput = buildAnalysisInputFromExtraction(extraction);
+
+  // Score the extracted content with the same engine used for text messages.
+  const report = await callOpenAiJson(ANALYZE_PROMPT, analysisInput);
+
+  report.extractedText = visibleText;
+  report.extractedUrls = Array.isArray(extraction.extractedUrls)
+    ? extraction.extractedUrls.map((u) => String(u || "").trim()).filter(Boolean)
+    : [];
+  report.detectedBanks = report.detectedBanks?.length
+    ? report.detectedBanks
+    : Array.isArray(extraction.brandsSeen)
+      ? extraction.brandsSeen
+      : [];
+  return report;
 }
 
 async function pdfPagesToImages(buffer, maxPages = 3) {
@@ -234,30 +320,23 @@ async function analyzePdfBuffer(buffer) {
     throw new Error("Could not read PDF pages");
   }
 
-  const parts = [
-    {
-      type: "text",
-      text: "This is a scanned PDF. Analyze every page image for financial fraud, phishing, and social engineering. Read all visible Arabic and English text.",
+  const imageParts = pageImages.map((img) => ({
+    type: "image_url",
+    image_url: {
+      url: `data:${img.mime};base64,${img.base64}`,
+      detail: "high",
     },
-    ...pageImages.map((img) => ({
-      type: "image_url",
-      image_url: {
-        url: `data:${img.mime};base64,${img.base64}`,
-        detail: "high",
-      },
-    })),
-  ];
+  }));
 
-  return callOpenAiVision(parts);
+  return analyzeImageParts(
+    imageParts,
+    "This is a scanned PDF. Transcribe ALL visible text from every page and list every URL. Do not score, just extract.",
+  );
 }
 
 async function analyzeImageBuffer(buffer, mimeType) {
   const base64 = buffer.toString("base64");
-  return callOpenAiVision([
-    {
-      type: "text",
-      text: "Analyze this screenshot or photo for financial fraud, phishing, and social engineering. Read all visible text and UI elements.",
-    },
+  const imageParts = [
     {
       type: "image_url",
       image_url: {
@@ -265,7 +344,12 @@ async function analyzeImageBuffer(buffer, mimeType) {
         detail: "high",
       },
     },
-  ]);
+  ];
+
+  return analyzeImageParts(
+    imageParts,
+    "Transcribe ALL visible text from this screenshot/photo and list every URL exactly. Do not score, just extract.",
+  );
 }
 
 function runSocReport(payload) {
@@ -464,6 +548,187 @@ function averageRiskBreakdown(mlBreakdown, aiBreakdown, fallbackScore) {
     }
   }
   return out;
+}
+
+const URL_IN_TEXT_RE = /https?:\/\/[^\s<>"'\]\)]+/gi;
+const WWW_URL_RE = /\bwww\.[a-z0-9][-a-z0-9.]*\.[a-z]{2,}(?:\/[^\s<>"'\]\)]*)?/gi;
+const SUSPICIOUS_BARE_DOMAIN_RE =
+  /\b(?:[a-z0-9-]+\.)+(?:xyz|top|club|icu|tk|ml|ga|cf|gq|click|link|online|site|support)(?:\/[a-z0-9._~:/?#\[\]@!$&'()*+,;=%-]*)?/gi;
+
+function extractUrlsFromText(text) {
+  if (!text) return [];
+  const cleaned = String(text)
+    .replace(/[\u200B-\u200D\uFEFF]/g, "")
+    .replace(/[\u00A0\u202F]/g, " ");
+  const found = [];
+  for (const match of cleaned.match(URL_IN_TEXT_RE) || []) found.push(match);
+  for (const match of cleaned.match(WWW_URL_RE) || []) {
+    found.push(/^https?:\/\//i.test(match) ? match : `https://${match}`);
+  }
+  for (const match of cleaned.match(SUSPICIOUS_BARE_DOMAIN_RE) || []) {
+    if (/^https?:\/\//i.test(match)) found.push(match);
+    else found.push(`http://${match}`);
+  }
+  return [
+    ...new Set(
+      found.map((url) => url.replace(/[.,;:!?)>\]]+$/g, "")).filter(Boolean),
+    ),
+  ];
+}
+
+function heuristicUrlRiskScore(url) {
+  let score = 15;
+  const full = /^https?:\/\//i.test(url) ? url : `https://${url}`;
+  try {
+    const host = new URL(full).hostname.replace(/^www\./, "").toLowerCase();
+    if (/bit\.ly|tinyurl|t\.co|goo\.gl|rb\.gy|short/i.test(full)) score += 15;
+    if (
+      ["secure-", "-verify", "-login", "-update", "-support", "account-", "banking-"].some(
+        (s) => host.includes(s),
+      )
+    ) {
+      score += 22;
+    }
+    if (/\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/.test(host)) score += 20;
+    if (!/^https:\/\//i.test(full)) score += 12;
+    if ((full.match(/\./g) || []).length > 3) score += 10;
+    if (/\.(xyz|top|club|icu|tk|ml|ga|cf|gq)\b/i.test(host)) score += 18;
+  } catch {
+    score = 70;
+  }
+  return Math.min(98, score);
+}
+
+async function resolveLinkSafetyForContent(text, contentType, existingBreakdown = {}) {
+  const type = String(contentType || "Message");
+  const isUrlTab = type.toUpperCase() === "URL";
+
+  if (isUrlTab) {
+    const raw = String(text || "").trim();
+    const url = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+    const localScore = heuristicUrlRiskScore(url);
+    try {
+      const ml = await runUrlMlPrediction(url);
+      if (ml.success) {
+        const aiLink = Number(existingBreakdown.linkSafety);
+        const mlScore = Number(ml.riskScore) || 0;
+        const parts = [mlScore, localScore];
+        if (Number.isFinite(aiLink) && aiLink > 0) parts.push(aiLink);
+        return {
+          linkSafety: Math.round(Math.max(...parts)),
+          linksNotApplicable: false,
+          detectedUrls: [url],
+        };
+      }
+    } catch {
+      /* fall through */
+    }
+    const aiLink = Number(existingBreakdown.linkSafety);
+    return {
+      linkSafety: Math.max(localScore, Number.isFinite(aiLink) ? aiLink : 0),
+      linksNotApplicable: false,
+      detectedUrls: [url],
+    };
+  }
+
+  const urls = extractUrlsFromText(text);
+  if (!urls.length) {
+    return { linkSafety: 0, linksNotApplicable: true, detectedUrls: [] };
+  }
+
+  let maxMlScore = 0;
+  let mlOk = false;
+  for (const url of urls) {
+    try {
+      const ml = await runUrlMlPrediction(url);
+      if (ml.success) {
+        mlOk = true;
+        maxMlScore = Math.max(maxMlScore, Number(ml.riskScore) || 0);
+      }
+    } catch {
+      /* try next url */
+    }
+  }
+
+  const localScore = Math.max(...urls.map((u) => heuristicUrlRiskScore(u)));
+  const aiLink = Number(existingBreakdown.linkSafety);
+  const candidates = [localScore];
+  if (mlOk) candidates.push(maxMlScore);
+  // Never let OpenAI's 0 wipe a real URL score when a link is present
+  if (Number.isFinite(aiLink) && aiLink > 0) candidates.push(Math.round(aiLink));
+
+  return {
+    linkSafety: Math.round(Math.max(...candidates)),
+    linksNotApplicable: false,
+    detectedUrls: urls,
+  };
+}
+
+function collectUrlsFromAnalysis(data, extraText = "") {
+  const fromField = Array.isArray(data?.extractedUrls)
+    ? data.extractedUrls.map((u) => String(u || "").trim()).filter(Boolean)
+    : [];
+  const fromDetected = Array.isArray(data?.detectedUrls)
+    ? data.detectedUrls.map((u) => String(u || "").trim()).filter(Boolean)
+    : [];
+  const blob = [
+    extraText,
+    ...(fromField),
+    ...(fromDetected),
+    data?.detailedAnalysis,
+    data?.shortExplanation,
+    ...(Array.isArray(data?.reasoning) ? data.reasoning : []),
+  ]
+    .filter(Boolean)
+    .join("\n");
+  return [...new Set([...fromField, ...fromDetected, ...extractUrlsFromText(blob)])];
+}
+
+async function applyLinkSafetyToReport(text, contentType, data) {
+  const type = String(contentType || "Message");
+  const isScreenshot = /screenshot|file|image|pdf/i.test(type);
+
+  // For screenshots/files: use URLs extracted by vision + any http links in analysis.
+  // For messages/emails: only use the original user text (avoid invented example URLs).
+  const scanText = isScreenshot
+    ? collectUrlsFromAnalysis(data, text).join("\n")
+    : text;
+
+  const resolved = await resolveLinkSafetyForContent(
+    scanText || text,
+    isScreenshot ? "Message" : type,
+    data.riskBreakdown || {},
+  );
+
+  // If vision returned extractedUrls but regex missed them, score those URLs directly
+  if (isScreenshot && resolved.linksNotApplicable) {
+    const visionUrls = collectUrlsFromAnalysis(data, text);
+    if (visionUrls.length) {
+      const localScore = Math.max(...visionUrls.map((u) => heuristicUrlRiskScore(u)));
+      let maxMl = 0;
+      for (const url of visionUrls) {
+        try {
+          const ml = await runUrlMlPrediction(url);
+          if (ml.success) maxMl = Math.max(maxMl, Number(ml.riskScore) || 0);
+        } catch {
+          /* ignore */
+        }
+      }
+      resolved.linkSafety = Math.max(localScore, maxMl);
+      resolved.linksNotApplicable = false;
+      resolved.detectedUrls = visionUrls;
+    }
+  }
+
+  data.riskBreakdown = { ...(data.riskBreakdown || {}), linkSafety: resolved.linkSafety };
+  data.linksNotApplicable = resolved.linksNotApplicable;
+  if (resolved.detectedUrls?.length) {
+    data.detectedUrls = resolved.detectedUrls;
+  }
+  if (Array.isArray(data.extractedUrls) && data.extractedUrls.length && !data.detectedUrls?.length) {
+    data.detectedUrls = data.extractedUrls;
+  }
+  return data;
 }
 
 async function analyzeUrlWithOpenAi(url) {
@@ -683,7 +948,7 @@ app.post("/analyze", async (req, res) => {
       });
     }
 
-    const { text } = req.body;
+    const { text, contentType } = req.body;
 
     if (!text) {
       return res.status(400).json({
@@ -693,6 +958,7 @@ app.post("/analyze", async (req, res) => {
     }
 
     const data = await callOpenAiJson(ANALYZE_PROMPT, text);
+    await applyLinkSafetyToReport(text, contentType || "Message", data);
     recordAnalysisIncident(text, data);
 
     res.json({
@@ -744,6 +1010,8 @@ app.post("/analyze-file", upload.single("file"), async (req, res) => {
       fileName: originalname,
       fileType: mimetype,
     };
+    // Score links visible in the screenshot (extractedUrls + URLs in OCR/analysis text)
+    await applyLinkSafetyToReport("", "Screenshot", responseData);
     recordAnalysisIncident(`[file: ${originalname}]`, responseData);
 
     res.json({

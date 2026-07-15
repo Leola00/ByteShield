@@ -1444,13 +1444,90 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     return `${lead} مع ذلك، تحقق دائماً عبر القنوات الرسمية إذا شعرت بأي شيء غريب.`;
   }
 
+  const URL_IN_TEXT_RE = /https?:\/\/[^\s<>"'\]\)]+/gi;
+  const WWW_URL_RE = /\bwww\.[a-z0-9][-a-z0-9.]*\.[a-z]{2,}(?:\/[^\s<>"'\]\)]*)?/gi;
+  const SUSPICIOUS_BARE_DOMAIN_RE =
+    /\b(?:[a-z0-9-]+\.)+(?:xyz|top|club|icu|tk|ml|ga|cf|gq|click|link|online|site|support)(?:\/[a-z0-9._~:/?#\[\]@!$&'()*+,;=%-]*)?/gi;
+
+  function extractUrlsFromText(text) {
+    if (!text) return [];
+    const cleaned = String(text)
+      .replace(/[\u200B-\u200D\uFEFF]/g, '')
+      .replace(/[\u00A0\u202F]/g, ' ');
+    const found = [];
+    for (const match of cleaned.match(URL_IN_TEXT_RE) || []) found.push(match);
+    for (const match of cleaned.match(WWW_URL_RE) || []) {
+      found.push(/^https?:\/\//i.test(match) ? match : `https://${match}`);
+    }
+    for (const match of cleaned.match(SUSPICIOUS_BARE_DOMAIN_RE) || []) {
+      found.push(/^https?:\/\//i.test(match) ? match : `http://${match}`);
+    }
+    return [...new Set(found.map((url) => url.replace(/[.,;:!?)>\]]+$/g, '')).filter(Boolean))];
+  }
+
+  function computeLocalLinkSafety(text, contentType) {
+    if (contentType === 'URL') {
+      return { linkSafety: analyzeUrl(text).score, linksNotApplicable: false };
+    }
+    const urls = extractUrlsFromText(text);
+    if (!urls.length) {
+      return { linkSafety: 0, linksNotApplicable: true };
+    }
+    let maxScore = 0;
+    urls.forEach((url) => {
+      maxScore = Math.max(maxScore, analyzeUrl(url).score);
+    });
+    return { linkSafety: maxScore, linksNotApplicable: false };
+  }
+
+  function applyLinkSafetyToReport(report, text, contentType) {
+    report.riskBreakdown = report.riskBreakdown || {};
+    if (contentType === 'URL') {
+      report.linksNotApplicable = false;
+      const local = analyzeUrl(text).score;
+      const existing = Number(report.riskBreakdown.linkSafety);
+      report.riskBreakdown.linkSafety = Math.max(
+        local,
+        Number.isFinite(existing) ? existing : 0,
+      );
+      return report;
+    }
+    const urls = extractUrlsFromText(text);
+    if (!urls.length) {
+      const existing = Number(report.riskBreakdown.linkSafety);
+      // Screenshot/file: keep a real server/OpenAI link score if one was already computed
+      if (
+        (contentType === 'Screenshot' || contentType === 'File') &&
+        Number.isFinite(existing) &&
+        existing > 0
+      ) {
+        report.linksNotApplicable = false;
+        return report;
+      }
+      // No URL in the user's content → الروابط must be 0
+      report.linksNotApplicable = true;
+      report.riskBreakdown.linkSafety = 0;
+      return report;
+    }
+    // URL present → always use a real score (max of API + local heuristics)
+    report.linksNotApplicable = false;
+    const local = computeLocalLinkSafety(text, contentType).linkSafety;
+    const existing = Number(report.riskBreakdown.linkSafety);
+    report.riskBreakdown.linkSafety = Math.max(
+      local || 0,
+      Number.isFinite(existing) && existing > 0 ? existing : 0,
+    );
+    return report;
+  }
+
   function buildLocalReport(text, contentType) {
     const analysis = contentType === 'URL' ? analyzeUrl(text) : analyzeText(text);
     const score = analysis.score;
     const tier = getScoreTier(score);
     const flags = analysis.flags || [];
+    const linkMeta = computeLocalLinkSafety(text, contentType);
 
-    return {
+    const report = {
       score,
       tier,
       statusMessage: tier.defaultMessage,
@@ -1461,11 +1538,12 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
       riskBreakdown: {
         senderAuthenticity: Math.round(score * 0.8),
         languageAnalysis: Math.round(score * 0.7),
-        linkSafety: Math.round(score * 0.85),
+        linkSafety: linkMeta.linksNotApplicable ? 0 : linkMeta.linkSafety,
         financialFraudIndicators: Math.round(score * 0.9),
         socialEngineeringIndicators: Math.round(score * 0.75),
         urgencyDetection: Math.round(score * 0.65),
       },
+      linksNotApplicable: linkMeta.linksNotApplicable,
       detailedAnalysis: buildExplanation(text, flags, score, contentType),
       detectedBanks: [],
       bankAdvice: '',
@@ -1474,6 +1552,7 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
       source: 'local',
       analysisNote: 'تحليل محلي (مفتاح OpenAI غير متاح) — للرسائل استخدم مفتاح API صالحاً للدقة الأعلى',
     };
+    return report;
   }
 
   function isOpenAiKeyError(message) {
@@ -1550,7 +1629,21 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
         ]
           .map((x) => String(x || '').trim())
           .find((x) => x && !/^\[ملف:/.test(x)) || input.text;
-        const report = normalizeAiReport(ai, score, evidenceText, input.type);
+        // For screenshots: use backend detected/extracted URLs + analysis text that quotes them
+        const urlScanText = [
+          ...(Array.isArray(ai.extractedUrls) ? ai.extractedUrls : []),
+          ...(Array.isArray(ai.detectedUrls) ? ai.detectedUrls : []),
+          evidenceText,
+        ].join('\n');
+        const report = normalizeAiReport(ai, score, evidenceText, input.type, urlScanText);
+        // Prefer server-computed link score when present
+        if (ai.linksNotApplicable === false && Number.isFinite(ai.riskBreakdown?.linkSafety)) {
+          report.linksNotApplicable = false;
+          report.riskBreakdown.linkSafety = Math.max(
+            report.riskBreakdown.linkSafety || 0,
+            ai.riskBreakdown.linkSafety,
+          );
+        }
         finalizeAnalysis(evidenceText, input.type, report);
         return;
       }
@@ -1607,7 +1700,7 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
         } else if (activeTab === 'url') {
           const report = buildLocalReport(input.text, input.type);
           finalizeAnalysis(input.text, input.type, report);
-          showToast('تعذر تشغيل نموذج التعلم العميق — تم استخدام التحليل المحلي');
+          showToast('⚠️ Hybrid غير نشط — ML فشل. تم استخدام قواعد محلية ثابتة (ليست ML+AI). راجع PYTHON_BIN=py في backend/.env');
         } else {
           showToast(message);
         }
@@ -1616,9 +1709,11 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
 
       const ai = result.data;
       const score = Number(ai.riskScore) || 0;
-      const report = normalizeAiReport(ai, score, input.text, input.type);
+      const report = normalizeAiReport(ai, score, input.text, input.type, input.text);
       if (ai.source === 'hybrid') {
-        showToast('تم دمج تحليل نموذج ML وOpenAI');
+        showToast(`Hybrid: ML ${ai.ml?.riskScore ?? '—'} + OpenAI ${ai.openAi?.riskScore ?? '—'} → ${score}`);
+      } else if (ai.source === 'ml') {
+        showToast(`TensorFlow ML: ${score}/100`);
       }
       finalizeAnalysis(input.text, input.type, report);
     } catch (error) {
@@ -1630,13 +1725,16 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     }
   }
 
-  function normalizeAiReport(ai, score, text, contentType) {
+  function normalizeAiReport(ai, score, text, contentType, originalContent) {
     const tier = getScoreTier(score);
     const reasoning = Array.isArray(ai.reasoning) ? ai.reasoning
       : Array.isArray(ai.reasons) ? ai.reasons : [];
     const breakdown = ai.riskBreakdown || {};
     const type = contentType || lastContentType || 'Message';
-    return {
+    // Only scan the user's original input for URLs — never AI explanations
+    const urlScanText = originalContent != null ? originalContent : text;
+
+    const report = {
       score,
       tier,
       statusMessage: ai.statusMessage || tier.defaultMessage,
@@ -1648,11 +1746,12 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
       riskBreakdown: {
         senderAuthenticity: breakdown.senderAuthenticity ?? Math.round(score * 0.8),
         languageAnalysis: breakdown.languageAnalysis ?? Math.round(score * 0.7),
-        linkSafety: breakdown.linkSafety ?? Math.round(score * 0.85),
+        linkSafety: Number.isFinite(breakdown.linkSafety) ? breakdown.linkSafety : null,
         financialFraudIndicators: breakdown.financialFraudIndicators ?? Math.round(score * 0.9),
         socialEngineeringIndicators: breakdown.socialEngineeringIndicators ?? Math.round(score * 0.75),
         urgencyDetection: breakdown.urgencyDetection ?? Math.round(score * 0.65),
       },
+      linksNotApplicable: Boolean(ai.linksNotApplicable),
       detailedAnalysis: ai.detailedAnalysis || ai.shortExplanation || '',
       detectedBanks: Array.isArray(ai.detectedBanks) ? ai.detectedBanks : [],
       bankAdvice: ai.bankAdvice || '',
@@ -1662,7 +1761,11 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
       source: ai.source || 'openai',
       ml: ai.ml || null,
       openAi: ai.openAi || null,
+      analysisNote: ai.source === 'hybrid' && ai.ml && ai.openAi
+        ? `Hybrid: ML ${ai.ml.riskScore}/100 + OpenAI ${ai.openAi.riskScore}/100`
+        : ai.analysisNote || null,
     };
+    return applyLinkSafetyToReport(report, urlScanText, type);
   }
 
   function buildScreenshotReport(analysis, text) {
@@ -2325,6 +2428,23 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     resultsPlaceholder.hidden = true;
     if (resultsUser) resultsUser.hidden = activeMode !== 'user';
 
+    const sourceBadge = document.getElementById('analysis-source-badge');
+    if (sourceBadge) {
+      const labels = {
+        hybrid: 'ML + OpenAI (Hybrid)',
+        ml: 'TensorFlow ML',
+        openai: 'OpenAI',
+        local: 'تحليل محلي — ليس Hybrid',
+      };
+      const src = report.source || 'openai';
+      sourceBadge.hidden = false;
+      sourceBadge.textContent = labels[src] || src;
+      sourceBadge.className = `analysis-source-badge analysis-source-badge--${src}`;
+      if (src === 'hybrid' && report.ml && report.openAi) {
+        sourceBadge.title = `ML: ${report.ml.riskScore ?? report.score}/100 · OpenAI: ${report.openAi.riskScore}/100`;
+      }
+    }
+
     if (recommendCard) recommendCard.hidden = activeMode !== 'user';
 
     document.getElementById('results-time').textContent = formatSaudiDateTime();
@@ -2369,13 +2489,28 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     if (reportBankHint) reportBankHint.hidden = true;
 
     document.getElementById('eval-bars').innerHTML = EVAL_METRICS.map(({ key, label }) => {
-      const riskVal = riskBreakdown[key] ?? score;
-      const safetyVal = 100 - riskVal;
-      const barClass = safetyVal >= 70 ? 'safe' : safetyVal >= 40 ? 'warn' : 'danger';
+      let displayVal;
+      let barClass;
+
+      // الروابط: no URL → show 0; with URL → show real risk score (higher = more dangerous)
+      if (key === 'linkSafety') {
+        if (report.linksNotApplicable || !Number.isFinite(riskBreakdown.linkSafety)) {
+          displayVal = 0;
+          barClass = 'none';
+        } else {
+          displayVal = Math.max(0, Math.min(100, Math.round(riskBreakdown.linkSafety)));
+          barClass = displayVal >= 61 ? 'danger' : displayVal >= 31 ? 'warn' : 'safe';
+        }
+      } else {
+        const riskVal = riskBreakdown[key] ?? score;
+        displayVal = 100 - riskVal;
+        barClass = displayVal >= 70 ? 'safe' : displayVal >= 40 ? 'warn' : 'danger';
+      }
+
       return `<div class="eval-bar">
-        <div class="eval-bar__head"><span>${escapeHtml(label)}</span><span>${safetyVal}/100</span></div>
+        <div class="eval-bar__head"><span>${escapeHtml(label)}</span><span>${displayVal}/100</span></div>
         <div class="eval-bar__track">
-          <div class="eval-bar__fill eval-bar__fill--${barClass}" data-width="${safetyVal}" style="width:0"></div>
+          <div class="eval-bar__fill eval-bar__fill--${barClass}" data-width="${displayVal}" style="width:0"></div>
         </div>
       </div>`;
     }).join('');

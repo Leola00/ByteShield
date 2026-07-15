@@ -1,0 +1,20 @@
+﻿[
+    {
+        "url":  "https://google.com",
+        "success":  false,
+        "error":  "The remote server returned an error: (500) Internal Server Error.",
+        "data":  null
+    },
+    {
+        "url":  "http://secure-alinma-login.xyz/verify-account",
+        "success":  false,
+        "error":  "The remote server returned an error: (500) Internal Server Error.",
+        "data":  null
+    },
+    {
+        "url":  "https://bit.ly/fake-test",
+        "success":  false,
+        "error":  "The remote server returned an error: (500) Internal Server Error.",
+        "data":  null
+    }
+]
