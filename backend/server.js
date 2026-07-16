@@ -1371,6 +1371,9 @@ app.listen(PORT, () => {
   } else {
     console.warn("⚠️ Supabase not configured — using local fraud_cases.json fallback");
     console.warn("   Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in backend/.env");
+    const { getLocalDevCredentials } = require("./services/localDevAuth");
+    const dev = getLocalDevCredentials();
+    console.warn(`   Local dev login: ${dev.email} (override with FRAUD_DEV_EMAIL / FRAUD_DEV_PASSWORD)`);
   }
   console.log("✅ Fraud Operations API ready at /api/cases");
 });

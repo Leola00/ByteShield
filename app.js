@@ -2709,6 +2709,56 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     return 'low';
   }
 
+  function normalizeCampaignRecord(campaign) {
+    if (!campaign) return campaign;
+    if (typeof ByteShieldCampaignIds !== 'undefined') {
+      return ByteShieldCampaignIds.withRepresentativeCampaignIdentity(campaign);
+    }
+    const id = campaign.id || campaign.campaignId || campaign.campaign_id || 'CMP-UNKNOWN';
+    return { ...campaign, id, title: id, campaignId: id };
+  }
+
+  function rebuildFraudOpsNames(cases, campaigns) {
+    if (typeof FraudOpsNames !== 'undefined') {
+      FraudOpsNames.rebuildIndex(cases, campaigns);
+    }
+  }
+
+  function caseDisplayId(caseRecord) {
+    if (typeof FraudOpsNames !== 'undefined') return FraudOpsNames.caseDisplayId(caseRecord);
+    return caseRecord?.id || 'CASE-000';
+  }
+
+  function campaignDisplayId(campaign) {
+    if (typeof FraudOpsNames !== 'undefined') return FraudOpsNames.campaignDisplayId(campaign);
+    return campaign?.id || 'CMP-000';
+  }
+
+  function caseIndicativeName(caseRecord) {
+    if (typeof FraudOpsNames !== 'undefined') return FraudOpsNames.caseIndicativeName(caseRecord);
+    return (caseRecord?.fraudCategory || 'General').replace(/_/g, ' ');
+  }
+
+  function campaignIndicativeName(campaign) {
+    if (typeof FraudOpsNames !== 'undefined') return FraudOpsNames.campaignIndicativeName(campaign);
+    return (campaign?.fraudCategory || 'General').replace(/_/g, ' ');
+  }
+
+  function caseDisplayLine(caseRecord) {
+    if (typeof FraudOpsNames !== 'undefined') return FraudOpsNames.caseDisplayLine(caseRecord);
+    return caseDisplayId(caseRecord);
+  }
+
+  function campaignDisplayLine(campaign) {
+    if (typeof FraudOpsNames !== 'undefined') return FraudOpsNames.campaignDisplayLine(campaign);
+    return campaignDisplayId(campaign);
+  }
+
+  function campaignLookupKey(campaign) {
+    if (typeof FraudOpsNames !== 'undefined') return FraudOpsNames.campaignKey(campaign);
+    return campaign?.id || '';
+  }
+
   function statusBadgeClass(status) {
     if (status === 'Pending Review') return 'pending';
     if (status === 'Under Review') return 'open';
@@ -3255,11 +3305,7 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
   }
 
   function caseSubtitle(c) {
-    const preview = (c.preview || '').toString().trim();
-    if (preview) return preview.slice(0, 48);
-    const urls = c.urls || [];
-    if (urls[0]) return String(urls[0]).slice(0, 48);
-    return (c.fraudCategory || 'Customer report').replace(/_/g, ' ');
+    return caseIndicativeName(c);
   }
 
   function applyFraudKpis(stats, cases) {
@@ -3362,7 +3408,7 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
       .slice(0, 4)
       .forEach((c) => {
         alerts.push({
-          title: c.preview || c.id,
+          title: caseDisplayLine(c),
           time: c.submittedAt
             ? new Date(c.submittedAt).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' })
             : '',
@@ -3371,7 +3417,7 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
       });
     (campaigns || []).slice(0, 2).forEach((c) => {
       alerts.push({
-        title: `Campaign: ${c.title || c.id}`,
+        title: campaignDisplayLine(c),
         time: `${c.reportCount || 0} reports`,
         sev: (c.reportCount || 0) >= 5 ? 'high' : 'medium',
       });
@@ -3421,7 +3467,9 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
       }
 
       fraudCasesCache = casesJson.cases || [];
-      fraudCampaignsCache = campaignsJson.success ? (campaignsJson.campaigns || []) : [];
+      fraudCampaignsCache = (campaignsJson.success ? (campaignsJson.campaigns || []) : [])
+        .map(normalizeCampaignRecord);
+      rebuildFraudOpsNames(fraudCasesCache, fraudCampaignsCache);
       const stats = casesJson.stats || {};
 
       applyFraudKpis(stats, fraudCasesCache);
@@ -3457,7 +3505,8 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
           <span class="fraud-campaign__icon" aria-hidden="true">⚠</span>
           <span class="fraud-campaign__risk fraud-campaign__risk--${risk}">${risk}</span>
         </div>
-        <strong>${escapeHtml(c.title || 'Campaign')}</strong>
+        <strong dir="ltr">${escapeHtml(campaignDisplayId(c))}</strong>
+        <span class="fraud-campaign__label">${escapeHtml(campaignIndicativeName(c))}</span>
         <div class="fraud-campaign__meta">
           <span>${c.reportCount || 0} report${(c.reportCount || 0) === 1 ? '' : 's'}</span>
           <span>+${Math.min(c.reportsThisWeek || c.reportCount || 0, 15)} today</span>
@@ -3471,7 +3520,13 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     if (campaignSearchQuery) {
       const q = campaignSearchQuery.toLowerCase();
       list = list.filter((c) =>
-        [c.title, c.primaryUrl, c.fraudCategory, c.id]
+        [
+          campaignDisplayId(c),
+          campaignIndicativeName(c),
+          c.primaryUrl,
+          c.fraudCategory,
+          c.fingerprint,
+        ]
           .join(' ')
           .toLowerCase()
           .includes(q),
@@ -3533,7 +3588,8 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
           <button type="button" class="fraud-camp-card${c.id === selectedCampaignId ? ' fraud-camp-card--active' : ''}" data-campaign-id="${escapeHtml(c.id)}">
             <span class="fraud-camp-card__icon" aria-hidden="true">${c.primaryUrl ? '🌐' : '💬'}</span>
             <div class="fraud-camp-card__body">
-              <strong>${escapeHtml(c.title || 'Campaign')}</strong>
+              <strong dir="ltr">${escapeHtml(campaignDisplayId(c))}</strong>
+              <span class="fraud-camp-card__label">${escapeHtml(campaignIndicativeName(c))}</span>
               <span dir="ltr">${escapeHtml(url)}</span>
             </div>
             <div class="fraud-camp-card__meta">
@@ -3593,12 +3649,17 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     if (fraudCampaignDetailBody) fraudCampaignDetailBody.hidden = false;
 
     const risk = campaign.riskLevel || scoreLevelClass(campaign.riskScore);
-    if (fraudCampDetailTitle) fraudCampDetailTitle.textContent = campaign.title || 'Campaign';
+    if (fraudCampDetailTitle) fraudCampDetailTitle.textContent = campaignDisplayId(campaign);
     if (fraudCampDetailRisk) {
       fraudCampDetailRisk.textContent = `${risk} risk`;
       fraudCampDetailRisk.className = `fraud-campaign__risk fraud-campaign__risk--${risk}`;
     }
-    if (fraudCampDetailUrl) fraudCampDetailUrl.textContent = campaign.primaryUrl || 'No primary URL';
+    if (fraudCampDetailUrl) {
+      const url = campaign.primaryUrl || '';
+      fraudCampDetailUrl.textContent = url
+        ? `${campaignIndicativeName(campaign)} · ${url}`
+        : campaignIndicativeName(campaign);
+    }
     if (fraudCampDetailIcon) fraudCampDetailIcon.textContent = campaign.primaryUrl ? '🌐' : '💬';
     if (fraudCampStatReports) fraudCampStatReports.textContent = String(campaign.reportCount || 0);
     if (fraudCampStatToday) {
@@ -3688,8 +3749,8 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
           <td><span class="fraud-queue__type-icon" aria-hidden="true">${icon}</span></td>
           <td>
             <div class="fraud-queue__case-cell">
-              <span class="fraud-queue__id">${escapeHtml(c.id)}</span>
-              <span class="fraud-queue__case-sub" title="${escapeHtml(sub)}">${escapeHtml(sub)}</span>
+              <span class="fraud-queue__id" title="${escapeHtml(c.id)}">${escapeHtml(caseDisplayId(c))}</span>
+              <span class="fraud-queue__case-sub" title="${escapeHtml(c.id)}">${escapeHtml(sub)}</span>
             </div>
           </td>
           <td>${escapeHtml(date)}</td>
@@ -3745,6 +3806,8 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
       list = list.filter((c) => {
         const hay = [
           c.id,
+          caseDisplayId(c),
+          caseIndicativeName(c),
           c.preview,
           c.fraudCategory,
           c.contentType,
@@ -3869,8 +3932,8 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
           <td><span class="fraud-queue__type-icon" aria-hidden="true">${icon}</span></td>
           <td>
             <div class="fraud-queue__case-cell">
-              <span class="fraud-queue__id">${escapeHtml(c.id)}</span>
-              <span class="fraud-queue__case-sub" title="${escapeHtml(sub)}">${escapeHtml(sub)}</span>
+              <span class="fraud-queue__id" title="${escapeHtml(c.id)}">${escapeHtml(caseDisplayId(c))}</span>
+              <span class="fraud-queue__case-sub" title="${escapeHtml(c.id)}">${escapeHtml(sub)}</span>
             </div>
           </td>
           <td>${escapeHtml(date)}</td>
@@ -3963,7 +4026,9 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
       showToast('No IOCs extracted for this campaign yet');
       return;
     }
-    if (fraudCampIocModalTitle) fraudCampIocModalTitle.textContent = campaign.title || 'Campaign Indicators';
+    if (fraudCampIocModalTitle) {
+      fraudCampIocModalTitle.textContent = `${campaignDisplayId(campaign)} · ${campaignIndicativeName(campaign)} — Indicators`;
+    }
     renderIocCardsInto(fraudCampIocModalGrid, iocs);
     if (fraudCampIocModal) fraudCampIocModal.hidden = false;
   }
@@ -4040,7 +4105,10 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
       }
       if (fraudDetailBody) fraudDetailBody.hidden = false;
 
-      if (fraudDetailId) fraudDetailId.textContent = c.id;
+      if (fraudDetailId) {
+        fraudDetailId.textContent = caseDisplayId(c);
+        fraudDetailId.title = c.id;
+      }
       if (fraudDetailTitle) {
         fraudDetailTitle.textContent = (inv.aiInvestigationSummary || c.aiExplanation || c.fraudCategory || c.id)
           .toString()

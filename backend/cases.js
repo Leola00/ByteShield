@@ -2,6 +2,10 @@ const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 const { getSupabase, isConfigured } = require("./supabase");
+const {
+  campaignIdFromFingerprint,
+  withRepresentativeCampaignIdentity,
+} = require("./services/campaignIds");
 
 const CASES_FILE = path.join(__dirname, "fraud_cases.json");
 const CAMPAIGNS_FILE = path.join(__dirname, "fraud_campaigns.json");
@@ -50,10 +54,6 @@ function generateCaseId() {
   const yyyymmdd = new Date().toISOString().slice(0, 10).replace(/-/g, "");
   const rand = crypto.randomBytes(2).toString("hex").toUpperCase();
   return `FO-${yyyymmdd}-${rand}`;
-}
-
-function generateCampaignId() {
-  return `CMP-${crypto.randomBytes(3).toString("hex").toUpperCase()}`;
 }
 
 function extractIocs(text) {
@@ -117,17 +117,39 @@ function campaignFingerprint(iocs, fraudCategory, content) {
   return `text::${String(fraudCategory || "general").toLowerCase()}::${snippet}`;
 }
 
-function campaignTitle(iocs, fraudCategory, content) {
-  const category = String(fraudCategory || "Fraud")
-    .replace(/_/g, " ")
-    .replace(/\b\w/g, (c) => c.toUpperCase());
+function migrateStoredCampaigns() {
+  const campaigns = loadCampaigns();
+  const idMap = new Map();
+  let changed = false;
 
-  if (iocs.domains[0]) return `Fake ${iocs.domains[0]} campaign`;
-  if (iocs.emails[0]) return `Phishing from ${iocs.emails[0]}`;
-  if (/snb|saudi national/i.test(content)) return `Fake SNB Banking ${category}`;
-  if (/al.?rajhi|الراجحي/i.test(content)) return `Fake Al Rajhi ${category}`;
-  if (/alinma|الإنماء/i.test(content)) return `Fake Alinma ${category}`;
-  return `${category} campaign`;
+  campaigns.forEach((campaign) => {
+    const repId = campaign.fingerprint
+      ? campaignIdFromFingerprint(campaign.fingerprint)
+      : withRepresentativeCampaignIdentity(campaign).id;
+    if (campaign.id !== repId || campaign.title !== repId) {
+      if (campaign.id) idMap.set(campaign.id, repId);
+      campaign.id = repId;
+      campaign.title = repId;
+      changed = true;
+    }
+  });
+
+  if (changed) {
+    saveCampaigns(campaigns);
+    if (idMap.size) {
+      const cases = loadCasesLocal();
+      let casesChanged = false;
+      cases.forEach((caseRecord) => {
+        if (caseRecord.campaignId && idMap.has(caseRecord.campaignId)) {
+          caseRecord.campaignId = idMap.get(caseRecord.campaignId);
+          casesChanged = true;
+        }
+      });
+      if (casesChanged) saveCasesLocal(cases);
+    }
+  }
+
+  return campaigns;
 }
 
 function upsertCampaignForCase(caseRecord) {
@@ -137,13 +159,14 @@ function upsertCampaignForCase(caseRecord) {
     caseRecord.fraudCategory,
     caseRecord.content,
   );
+  const repId = campaignIdFromFingerprint(fp);
 
   let campaign = campaigns.find((c) => c.fingerprint === fp);
   if (!campaign) {
     campaign = {
-      id: generateCampaignId(),
+      id: repId,
       fingerprint: fp,
-      title: campaignTitle(caseRecord.iocs || {}, caseRecord.fraudCategory, caseRecord.content),
+      title: repId,
       fraudCategory: caseRecord.fraudCategory || "general",
       caseIds: [],
       reportCount: 0,
@@ -152,6 +175,9 @@ function upsertCampaignForCase(caseRecord) {
       status: "Active",
     };
     campaigns.unshift(campaign);
+  } else {
+    campaign.id = repId;
+    campaign.title = repId;
   }
 
   if (!campaign.caseIds.includes(caseRecord.id)) {
@@ -161,7 +187,7 @@ function upsertCampaignForCase(caseRecord) {
   }
 
   saveCampaigns(campaigns);
-  return campaign;
+  return withRepresentativeCampaignIdentity(campaign);
 }
 
 function rowToCase(row) {
@@ -425,9 +451,18 @@ async function getStats() {
 }
 
 function enrichCampaign(campaign, allCases) {
-  const cases = (allCases || []).filter(
-    (c) => c.campaignId === campaign.id || (campaign.caseIds || []).includes(c.id),
-  );
+  const normalized = withRepresentativeCampaignIdentity(campaign);
+  const cases = (allCases || []).filter((c) => {
+    if (normalized.caseIds?.includes(c.id)) return true;
+    if (c.campaignId && c.campaignId === normalized.id) return true;
+    if (
+      normalized.fingerprint &&
+      campaignFingerprint(c.iocs || {}, c.fraudCategory, c.content) === normalized.fingerprint
+    ) {
+      return true;
+    }
+    return false;
+  });
   const scores = cases.map((c) => Number(c.fraudProbability) || 0);
   const riskScore = scores.length ? Math.max(...scores) : 0;
   const riskLevel = riskScore >= 80 ? "high" : riskScore >= 50 ? "medium" : "low";
@@ -488,7 +523,7 @@ function enrichCampaign(campaign, allCases) {
   ).length;
 
   return {
-    ...campaign,
+    ...normalized,
     riskScore,
     riskLevel,
     primaryUrl,
@@ -509,14 +544,16 @@ function enrichCampaign(campaign, allCases) {
 
 async function listCampaigns() {
   const cases = await listCases();
-  return loadCampaigns()
+  return migrateStoredCampaigns()
     .filter((c) => c.reportCount >= 1)
     .sort((a, b) => b.reportCount - a.reportCount)
     .map((campaign) => enrichCampaign(campaign, cases));
 }
 
 async function getCampaignById(id) {
-  const campaign = loadCampaigns().find((c) => c.id === id);
+  const campaign = loadCampaigns().find(
+    (c) => c.id === id || campaignIdFromFingerprint(c.fingerprint) === id,
+  );
   if (!campaign) return null;
   const cases = await listCases();
   return enrichCampaign(campaign, cases);

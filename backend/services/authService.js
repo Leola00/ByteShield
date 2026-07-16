@@ -5,6 +5,10 @@
 const bcrypt = require("bcryptjs");
 const analysts = require("./analystsService");
 const { isConfigured } = require("../supabase");
+const {
+  buildLocalDevAnalyst,
+  matchesLocalDevLogin,
+} = require("./localDevAuth");
 
 /** Cost factor — higher = slower to crack */
 const BCRYPT_ROUNDS = 12;
@@ -33,8 +37,20 @@ async function verifyPassword(plain, storedHash) {
  */
 async function login(email, password) {
   if (!isConfigured) {
-    const err = new Error("Supabase is not configured");
-    err.status = 503;
+    if (matchesLocalDevLogin(email, password)) {
+      const analyst = buildLocalDevAnalyst();
+      return {
+        analyst,
+        session: {
+          access_token: `table:${analyst.id}`,
+          refresh_token: null,
+          expires_at: null,
+          kind: "local-dev",
+        },
+      };
+    }
+    const err = new Error("Invalid login credentials");
+    err.status = 401;
     throw err;
   }
 

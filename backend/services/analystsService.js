@@ -2,6 +2,7 @@
  * Analysts — Supabase `analysts` table
  */
 const { getSupabase, isConfigured } = require("../supabase");
+const { buildLocalDevAnalyst, isLocalDevAnalystId } = require("./localDevAuth");
 
 function mapAnalyst(row) {
   if (!row) return null;
@@ -24,7 +25,11 @@ const PUBLIC_COLUMNS =
   "id, auth_user_id, full_name, email, role, team, avatar, phone, phone_code, bio, created_at, updated_at";
 
 async function getByEmail(email) {
-  if (!isConfigured) return null;
+  if (!isConfigured) {
+    const analyst = buildLocalDevAnalyst();
+    const normalized = String(email || "").trim().toLowerCase();
+    return normalized === analyst.email ? analyst : null;
+  }
   const sb = getSupabase();
   const { data, error } = await sb
     .from("analysts")
@@ -48,6 +53,9 @@ async function getByAuthUserId(authUserId) {
 }
 
 async function getById(id) {
+  if (!isConfigured && isLocalDevAnalystId(id)) {
+    return buildLocalDevAnalyst();
+  }
   if (!isConfigured) return null;
   const sb = getSupabase();
   const { data, error } = await sb.from("analysts").select(PUBLIC_COLUMNS).eq("id", id).maybeSingle();
@@ -100,6 +108,18 @@ async function upsertFromAuth({ authUserId, email, fullName, role, team }) {
 }
 
 async function updateProfile(id, updates = {}) {
+  if (!isConfigured && isLocalDevAnalystId(id)) {
+    return buildLocalDevAnalyst({
+      fullName: updates.fullName ?? updates.full_name,
+      email: updates.email,
+      role: updates.role,
+      team: updates.team,
+      avatar: updates.avatar,
+      phone: updates.phone,
+      phoneCode: updates.phoneCode ?? updates.phone_code,
+      bio: updates.bio,
+    });
+  }
   const sb = getSupabase();
   const patch = { updated_at: new Date().toISOString() };
   if (updates.fullName !== undefined) patch.full_name = updates.fullName;

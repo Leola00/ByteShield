@@ -2,6 +2,10 @@
  * Build Active Campaigns dynamically from fraud_cases IOCs.
  * No separate campaigns table.
  */
+const {
+  campaignIdFromIndicatorKey,
+  withRepresentativeCampaignIdentity,
+} = require("./campaignIds");
 function extractCampaignKeys(caseRow) {
   const keys = new Set();
   const iocs = caseRow.iocs || {};
@@ -30,15 +34,7 @@ function extractCampaignKeys(caseRow) {
 }
 
 function campaignTitleFromKey(key) {
-  const [type, ...rest] = String(key).split(":");
-  const value = rest.join(":");
-  if (type === "domain") return `Fake ${value} campaign`;
-  if (type === "email") return `Phishing from ${value}`;
-  if (type === "phone") return `Phone scam ${value}`;
-  if (type === "url") return `URL campaign`;
-  if (type === "ip") return `IP campaign ${value}`;
-  if (type === "hash") return `Malware hash campaign`;
-  return "Fraud campaign";
+  return campaignIdFromIndicatorKey(key);
 }
 
 function buildCampaignsFromCases(cases = []) {
@@ -88,10 +84,9 @@ function buildCampaignsFromCases(cases = []) {
     });
     const uniq = (arr) => [...new Set(arr.filter(Boolean))];
 
-    campaigns.push({
-      id: `CMP-${Buffer.from(key).toString("hex").slice(0, 8).toUpperCase()}`,
+    campaigns.push(
+      withRepresentativeCampaignIdentity({
       fingerprint: key,
-      title: campaignTitleFromKey(key),
       fraudCategory: latest?.fraudCategory || "general",
       caseIds: members.map((m) => m.id),
       reportCount: members.length,
@@ -121,7 +116,8 @@ function buildCampaignsFromCases(cases = []) {
         { name: "Dammam", pct: 18, count: Math.round(members.length * 0.18) },
         { name: "Other", pct: 12, count: Math.round(members.length * 0.12) },
       ],
-    });
+      }),
+    );
   }
 
   return campaigns.sort((a, b) => b.reportCount - a.reportCount);
