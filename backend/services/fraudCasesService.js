@@ -48,21 +48,37 @@ function applyOverrideToCase(mapped) {
   if (!mapped?.id) return mapped;
   const ov = readOverrides()[mapped.id];
   if (!ov) return mapped;
-  const next = { ...mapped, ...ov };
+
+  const dbStatus = mapped.status || "Pending Review";
+  const hasExplicitAssignment =
+    ov.explicitTake === true || ov.decision || ov.reviewedAt || ov.reviewedBy;
+  const next = { ...mapped };
+
   if (ov.investigation) next.investigation = ov.investigation;
   if (ov.decision && typeof ov.decision === "object") {
     next.decision = ov.decision;
     next.decisionLabel = ov.decision.outcome || ov.decisionLabel;
   }
-  if (ov.status) next.status = ov.status;
-  if (ov.assignedTo !== undefined) next.assignedTo = ov.assignedTo;
-  if (ov.reviewedBy !== undefined) next.reviewedBy = ov.reviewedBy;
-  if (ov.reviewedAt !== undefined) next.reviewedAt = ov.reviewedAt;
+  if (ov.screenshotDataUrl) next.screenshotDataUrl = ov.screenshotDataUrl;
   if (ov.aiSummary) {
     next.aiSummary = ov.aiSummary;
     next.aiExplanation = ov.aiSummary;
   }
   if (ov.aiRecommendation) next.aiRecommendation = ov.aiRecommendation;
+
+  // Stale local overrides from old auto-assign-on-view must not pull cases into My Reviews.
+  if (dbStatus === "Pending Review" && !hasExplicitAssignment) {
+    next.status = dbStatus;
+    next.assignedTo = mapped.assignedTo ?? null;
+    next.reviewedBy = mapped.reviewedBy ?? null;
+    next.reviewedAt = mapped.reviewedAt ?? null;
+    return next;
+  }
+
+  if (ov.status) next.status = ov.status;
+  if (ov.assignedTo !== undefined) next.assignedTo = ov.assignedTo;
+  if (ov.reviewedBy !== undefined) next.reviewedBy = ov.reviewedBy;
+  if (ov.reviewedAt !== undefined) next.reviewedAt = ov.reviewedAt;
   return next;
 }
 
@@ -337,6 +353,13 @@ async function patchCase(id, updates = {}) {
   };
   if (updates.investigation !== undefined) {
     overridePatch.investigation = updates.investigation;
+  }
+  if (patch.status === "Under Review") {
+    overridePatch.explicitTake = true;
+  }
+  if (patch.status === "Pending Review") {
+    overridePatch.explicitTake = false;
+    overridePatch.assignedTo = null;
   }
   if (decisionMeta !== undefined) {
     overridePatch.decision = decisionMeta;

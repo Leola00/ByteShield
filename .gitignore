@@ -32,4 +32,6 @@ backend/data/case-overrides.json
 
 __pycache__/
 *.pyc
+venv/
+backend/venv/
 

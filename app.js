@@ -325,6 +325,7 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     byteshieldPanel.hidden = true;
     alinmaPage.hidden = false;
     document.body.style.overflow = '';
+    if (byteshieldPanel) byteshieldPanel.classList.remove('byteshield-panel--fraud-active');
   });
 
   const navDrawerBackdrop = document.getElementById('nav-drawer-backdrop');
@@ -514,6 +515,7 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
   const fraudNotesList = document.getElementById('fraud-notes-list');
   const fraudNotesEmpty = document.getElementById('fraud-notes-empty');
   const fraudNotesBody = document.getElementById('fraud-notes-body');
+  const fraudNotesDetail = document.getElementById('fraud-notes-detail');
   const fraudNotesListTitle = document.getElementById('fraud-notes-list-title');
   const fraudNotesSearch = document.getElementById('fraud-notes-search');
   const fraudNotesCase = document.getElementById('fraud-notes-case');
@@ -536,12 +538,14 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
   const fraudNoteCaseSelect = document.getElementById('fraud-note-case-select');
   const fraudNoteContent = document.getElementById('fraud-note-content');
   const fraudQueuePageBadge = document.getElementById('fraud-queue-page-badge');
+  const fraudQueuePageTitle = document.getElementById('fraud-queue-page-title');
+  const fraudQueuePageSub = document.getElementById('fraud-queue-page-sub');
+  const fraudReviewCount = document.getElementById('fraud-review-count');
   const fraudCampaignsPageBadge = document.getElementById('fraud-campaigns-page-badge');
   const fraudStatusFilter = document.getElementById('fraud-status-filter');
   const btnFraudBackServices = document.getElementById('btn-fraud-back-services');
   const btnFraudCampaignsRefresh = document.getElementById('btn-fraud-campaigns-refresh');
   const btnFraudAllRefresh = document.getElementById('btn-fraud-all-refresh');
-  const fraudSelectAll = document.getElementById('fraud-select-all');
   const fraudQueuePages = document.getElementById('fraud-queue-pages');
   const allCasesList = document.getElementById('all-cases-list');
   const allCasesSearch = document.getElementById('all-cases-search');
@@ -551,7 +555,6 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
   const allSourceFilter = document.getElementById('all-source-filter');
   const allCasesPager = document.getElementById('all-cases-pager');
   const allCasesPages = document.getElementById('all-cases-pages');
-  const allSelectAll = document.getElementById('all-select-all');
   const allKpiTotal = document.getElementById('all-kpi-total');
   const allKpiPending = document.getElementById('all-kpi-pending');
   const allKpiReview = document.getElementById('all-kpi-review');
@@ -568,9 +571,6 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
   const allStatusReviewPct = document.getElementById('all-status-review-pct');
   const allStatusClosedPct = document.getElementById('all-status-closed-pct');
   const allRiskBars = document.getElementById('all-risk-bars');
-  const btnAllAdvancedSearch = document.getElementById('btn-all-advanced-search');
-  const btnAllExport = document.getElementById('btn-all-export');
-  const btnAllBulk = document.getElementById('btn-all-bulk');
   const fraudCampaignPageList = document.getElementById('fraud-campaign-page-list');
   const fraudCampaignSearch = document.getElementById('fraud-campaign-search');
   const fraudCampaignSort = document.getElementById('fraud-campaign-sort');
@@ -620,8 +620,13 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
   const fraudDrawerBackdrop = document.getElementById('fraud-drawer-backdrop');
   const fraudCaseDetail = document.getElementById('fraud-case-detail');
   const btnFraudCloseDrawer = document.getElementById('btn-fraud-close-drawer');
+  const fraudDetailPreviewBar = document.getElementById('fraud-detail-preview-bar');
+  const btnFraudPreviewDecline = document.getElementById('btn-fraud-preview-decline');
+  const btnFraudPreviewTake = document.getElementById('btn-fraud-preview-take');
+  const fraudDetailReleaseBar = document.getElementById('fraud-detail-release-bar');
+  const btnFraudReleaseCase = document.getElementById('btn-fraud-release-case');
+  const fraudDrawerHeadTitle = document.querySelector('#fraud-case-detail .fraud-ops__drawer-head h2');
   const btnFraudOpenCopilot = document.getElementById('btn-fraud-open-copilot');
-  const btnFraudExport = document.getElementById('btn-fraud-export');
   const fraudDetailEmpty = document.getElementById('fraud-detail-empty');
   const fraudDetailBody = document.getElementById('fraud-detail-body');
   const fraudDetailId = document.getElementById('fraud-detail-id');
@@ -706,8 +711,10 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
   let fraudCopilotHistory = [];
   let fraudSearchQuery = '';
   let fraudCategory = 'all';
+  let queuePageMode = 'queue';
+  let casePreviewMode = false;
+  let fraudCasesKnownIds = new Set();
   let fraudView = 'dashboard';
-  let fraudQuickFilter = null;
   let selectedCampaignId = null;
   let campaignSearchQuery = '';
   let campaignSort = 'newest';
@@ -792,7 +799,10 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
   function showFraudLogin() {
     if (fraudLogin) fraudLogin.hidden = false;
     if (fraudOps) fraudOps.hidden = true;
-    if (byteshieldPanel) byteshieldPanel.classList.add('byteshield-panel--fraud-login');
+    if (byteshieldPanel) {
+      byteshieldPanel.classList.add('byteshield-panel--fraud-login');
+      byteshieldPanel.classList.remove('byteshield-panel--fraud-active');
+    }
   }
 
   function hideFraudLogin() {
@@ -803,6 +813,7 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
   function enterFraudOpsDashboard() {
     hideFraudLogin();
     if (fraudOps) fraudOps.hidden = false;
+    if (byteshieldPanel) byteshieldPanel.classList.add('byteshield-panel--fraud-active');
     applyLiveAnalystToUi();
     applyFraudSettingsToUi();
     renderFraudOpsDashboard();
@@ -978,7 +989,7 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     if (alinmaPage) alinmaPage.classList.toggle('alinma-page--soc-mode', isFraud);
     if (openByteshield) openByteshield.classList.toggle('service-card--byteshield-soc', isFraud);
     if (bsHeaderModeBadge) {
-      bsHeaderModeBadge.textContent = isFraud ? 'Fraud Ops' : '\u0634\u062e\u0635\u064a';
+      bsHeaderModeBadge.textContent = isFraud ? 'Fraud Operations' : '\u0634\u062e\u0635\u064a';
       bsHeaderModeBadge.classList.toggle('bs-header__mode-badge--soc', isFraud);
     }
     if (byteshieldPanel) {
@@ -996,6 +1007,7 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     } else {
       hideFraudLogin();
       if (fraudOps) fraudOps.hidden = true;
+      if (byteshieldPanel) byteshieldPanel.classList.remove('byteshield-panel--fraud-active');
       stopFraudCasesAutoRefresh();
     }
 
@@ -2816,6 +2828,8 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
   }
 
   function closeFraudDrawer() {
+    setCasePreviewMode(false);
+    setCaseReleaseBar(false);
     if (fraudCaseDetail) fraudCaseDetail.hidden = true;
     if (fraudDrawerBackdrop) fraudDrawerBackdrop.hidden = true;
     if (fraudDetailEmpty) fraudDetailEmpty.hidden = false;
@@ -2824,7 +2838,105 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     selectedFraudCase = null;
   }
 
-  function scrollFraudSection(nav) {
+  function isCaseOwnedByCurrentAnalyst(c) {
+    return caseAssignedToMe(c);
+  }
+
+  function shouldPreviewBeforeTake(id, cached) {
+    const c = cached || fraudCasesCache.find((x) => x.id === id);
+    if (c?.status === 'Pending Review') return true;
+    if (c?.status === 'Under Review') return !isCaseOwnedByCurrentAnalyst(c);
+    if (c?.status === 'Closed') return false;
+    return queuePageMode === 'queue';
+  }
+
+  function setCasePreviewMode(active) {
+    casePreviewMode = active;
+    if (fraudCaseDetail) {
+      fraudCaseDetail.classList.toggle('fraud-ops__drawer--preview', active);
+    }
+    if (fraudDetailPreviewBar) fraudDetailPreviewBar.hidden = !active;
+    if (fraudDrawerHeadTitle) {
+      fraudDrawerHeadTitle.textContent = active ? 'Incoming Report' : 'Case Investigation';
+    }
+    const actionsEl = document.querySelector('#fraud-recommendation .fraud-detail__actions');
+    if (actionsEl) actionsEl.hidden = active;
+    if (fraudModifyPanel && active) fraudModifyPanel.hidden = true;
+    const noteAdd = document.getElementById('fraud-case-note-add');
+    if (noteAdd) noteAdd.hidden = active;
+    const copilotSection = document.getElementById('fraud-copilot-section');
+    if (copilotSection) copilotSection.hidden = active;
+  }
+
+  function setCaseReleaseBar(active) {
+    if (fraudDetailReleaseBar) fraudDetailReleaseBar.hidden = !active;
+  }
+
+  function resetQueueFilters() {
+    fraudFilter = 'all';
+    fraudSearchQuery = '';
+    fraudCategory = 'all';
+    if (fraudStatusFilter) fraudStatusFilter.value = 'all';
+    if (fraudCategoryFilter) fraudCategoryFilter.value = 'all';
+    if (fraudSearch) fraudSearch.value = '';
+    document.querySelectorAll('.fraud-filter').forEach((b) => {
+      b.classList.toggle('fraud-filter--active', b.dataset.fraudFilter === 'all');
+    });
+  }
+
+  function currentAnalystDisplayName() {
+    const analyst =
+      (typeof FraudOpsLive !== 'undefined' && FraudOpsLive.currentAnalyst()) || null;
+    return (
+      analyst?.fullName ||
+      fraudSettings?.fullName ||
+      fraudOpsAnalystName?.textContent ||
+      'Analyst'
+    );
+  }
+
+  function caseAssignedToMe(c) {
+    const assigned = String(c?.assignedTo || '').trim().toLowerCase();
+    const me = String(currentAnalystDisplayName() || '').trim().toLowerCase();
+    if (!assigned || !me) return false;
+    return assigned === me || assigned.includes(me) || me.includes(assigned);
+  }
+
+  function getPendingCases(cases) {
+    return (cases || []).filter((c) => c.status === 'Pending Review');
+  }
+
+  function getMyReviewCases(cases) {
+    return (cases || []).filter((c) => c.status === 'Under Review' && caseAssignedToMe(c));
+  }
+
+  function syncQueuePageHead() {
+    const isReview = queuePageMode === 'review';
+    if (fraudQueuePageTitle) {
+      fraudQueuePageTitle.textContent = isReview ? 'My Reviews' : 'Case Queue';
+    }
+    if (fraudQueuePageSub) {
+      fraudQueuePageSub.textContent = isReview
+        ? 'Cases you are actively investigating. Closed cases appear in All Cases.'
+        : 'New reports awaiting triage. Open a report to read it — choose whether to work on it.';
+    }
+    const visible = getVisibleFraudCases();
+    if (fraudQueuePageBadge) fraudQueuePageBadge.textContent = String(visible.length);
+    if (fraudView === 'queue') {
+      renderRiskCharts(visible);
+    }
+  }
+
+  function openCaseQueue(navKey = 'queue') {
+    queuePageMode = navKey === 'review' ? 'review' : 'queue';
+    resetQueueFilters();
+    switchFraudView('queue');
+    setActiveFraudNav(navKey);
+    syncQueuePageHead();
+    renderFraudCaseTable();
+  }
+
+  function scrollFraudSection(nav, queueNavKey = 'queue') {
     if (nav === 'dashboard') {
       switchFraudView('dashboard');
       setActiveFraudNav('dashboard');
@@ -2854,8 +2966,7 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
       renderNotesPage();
       return;
     }
-    switchFraudView('queue');
-    setActiveFraudNav('queue');
+    openCaseQueue(queueNavKey);
   }
 
   function getPlaybooksData() {
@@ -3170,10 +3281,40 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     });
 
     renderNotesPager(filtered.length);
-    selectNote(selectedNoteId);
+    await selectNote(selectedNoteId);
   }
 
-  function selectNote(id) {
+  async function submitNoteComment(noteId) {
+    const input = document.getElementById('fraud-notes-comment-input');
+    const submitBtn = document.getElementById('fraud-notes-comment-submit');
+    const text = input?.value?.trim();
+    if (!text) return;
+    if (typeof FraudOpsLive === 'undefined') {
+      showToast('Sign in to save comments');
+      return;
+    }
+    const analyst = FraudOpsLive.currentAnalyst();
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Saving…';
+    }
+    try {
+      await FraudOpsLive.addNoteComment(noteId, text, analyst?.id);
+      if (input) input.value = '';
+      await selectNote(noteId);
+      showToast('Comment saved');
+    } catch (err) {
+      console.error('Comment save failed:', err);
+      showToast(err.message || 'Could not save comment');
+    } finally {
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Add Comment';
+      }
+    }
+  }
+
+  async function selectNote(id) {
     selectedNoteId = id;
     const source = liveNotesCache.length ? liveNotesCache : INTERNAL_NOTES;
     const note = source.find((n) => n.id === id);
@@ -3202,6 +3343,20 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
            </div>
          </div>`
       : '';
+
+    if (typeof FraudOpsLive !== 'undefined') {
+      try {
+        const rows = await FraudOpsLive.listNoteComments(id);
+        note.comments = rows.map((c) => ({
+          id: c.id,
+          author: c.analystName || 'Analyst',
+          text: c.note || '',
+          at: c.createdAt,
+        }));
+      } catch (err) {
+        console.warn('Could not load note comments', err);
+      }
+    }
 
     const commentsHtml = (note.comments || []).map((c) => {
       const initials = (c.author || '?').split(/\s+/).map((p) => p[0]).join('').slice(0, 2).toUpperCase();
@@ -3256,28 +3411,14 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
       ${attachHtml}
       <div class="fraud-notes-comments">
         <p class="fraud-notes-section-label">Comments</p>
+        <div class="fraud-notes-comments__list" id="fraud-notes-comments-list">
+          ${commentsHtml || '<p class="fraud-notes-comments__empty">No comments yet.</p>'}
+        </div>
         <form class="fraud-notes-comment-form" id="fraud-notes-comment-form">
           <input type="text" id="fraud-notes-comment-input" placeholder="Add a comment..." autocomplete="off" />
-          <button type="submit">Add Comment</button>
+          <button type="submit" id="fraud-notes-comment-submit">Add Comment</button>
         </form>
-        ${commentsHtml || '<p style="margin:0;color:#94a3b8;font-size:0.85rem">No comments yet.</p>'}
       </div>`;
-
-    const commentForm = document.getElementById('fraud-notes-comment-form');
-    const commentInput = document.getElementById('fraud-notes-comment-input');
-    if (commentForm && commentInput) {
-      commentForm.addEventListener('submit', (e) => {
-        e.preventDefault();
-        const text = commentInput.value.trim();
-        if (!text) return;
-        note.comments = note.comments || [];
-        note.comments.push({ author: CURRENT_ANALYST, text, at: new Date().toISOString() });
-        note.updatedAt = new Date().toISOString();
-        commentInput.value = '';
-        selectNote(note.id);
-        showToast('Comment added');
-      });
-    }
 
     document.getElementById('btn-note-edit')?.addEventListener('click', () => {
       showToast('Edit note — coming soon');
@@ -3296,10 +3437,41 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     });
   }
 
+  const QUEUE_STATUSES = new Set(['Pending Review', 'Under Review']);
+
+  function isQueueCase(c) {
+    return QUEUE_STATUSES.has(c?.status);
+  }
+
+  function getQueueCases(cases) {
+    return (cases || []).filter(isQueueCase);
+  }
+
   function getVisibleFraudCases() {
-    let list = fraudCasesCache.slice();
-    if (fraudQuickFilter === 'high') {
-      list = list.filter((c) => Number(c.fraudProbability) >= 80);
+    let list = queuePageMode === 'review'
+      ? getMyReviewCases(fraudCasesCache)
+      : getPendingCases(fraudCasesCache);
+
+    if (fraudCategory && fraudCategory !== 'all') {
+      list = list.filter(
+        (c) => (c.fraudCategory || '').toLowerCase() === fraudCategory.toLowerCase(),
+      );
+    }
+    if (fraudSearchQuery) {
+      const q = fraudSearchQuery.toLowerCase();
+      list = list.filter((c) => {
+        const hay = [
+          c.id,
+          caseDisplayId(c),
+          caseIndicativeName(c),
+          c.preview,
+          c.fraudCategory,
+          c.contentType,
+          c.status,
+          c.assignedTo,
+        ].join(' ').toLowerCase();
+        return hay.includes(q);
+      });
     }
     return list;
   }
@@ -3346,8 +3518,13 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     if (fraudKpiHighDelta) fraudKpiHighDelta.textContent = highDelta;
     if (fraudKpiAiDelta) fraudKpiAiDelta.textContent = aiDelta;
 
-    if (fraudQueueCount) fraudQueueCount.textContent = String((cases || []).length);
-    if (fraudQueuePageBadge) fraudQueuePageBadge.textContent = String((cases || []).length);
+    const pendingCount = getPendingCases(cases).length;
+    const reviewCount = getMyReviewCases(cases).length;
+    if (fraudQueueCount) fraudQueueCount.textContent = String(pendingCount);
+    if (fraudReviewCount) fraudReviewCount.textContent = String(reviewCount);
+    if (fraudQueuePageBadge && fraudView === 'queue') {
+      fraudQueuePageBadge.textContent = String(getVisibleFraudCases().length);
+    }
     if (fraudAlertBadge) fraudAlertBadge.textContent = String(Math.min(99, highRisk || pending));
   }
 
@@ -3404,15 +3581,17 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     if (!fraudAlertsList) return;
     const alerts = [];
     (cases || [])
-      .filter((c) => Number(c.fraudProbability) >= 61)
+      .filter((c) => c.status === 'Pending Review' || Number(c.fraudProbability) >= 61)
       .slice(0, 4)
       .forEach((c) => {
         alerts.push({
+          caseId: c.id,
           title: caseDisplayLine(c),
           time: c.submittedAt
             ? new Date(c.submittedAt).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' })
             : '',
           sev: scoreLevelClass(c.fraudProbability),
+          pending: c.status === 'Pending Review',
         });
       });
     (campaigns || []).slice(0, 2).forEach((c) => {
@@ -3427,13 +3606,28 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
       fraudAlertsList.innerHTML = '<li class="fraud-alerts__empty">No alerts yet.</li>';
     } else {
       fraudAlertsList.innerHTML = alerts.slice(0, 5).map((a) => `
-        <li class="fraud-alert">
+        <li class="fraud-alert${a.caseId ? ' fraud-alert--clickable' : ''}"${a.caseId ? ` data-case-id="${escapeHtml(a.caseId)}" role="button" tabindex="0"` : ''}>
           <div>
             <strong>${escapeHtml((a.title || '').toString().slice(0, 64))}</strong>
-            <span>${escapeHtml(a.time)}</span>
+            <span>${escapeHtml(a.time)}${a.pending ? ' · New report' : ''}</span>
           </div>
           <span class="fraud-alert__sev fraud-alert__sev--${a.sev}">${a.sev}</span>
         </li>`).join('');
+      fraudAlertsList.querySelectorAll('.fraud-alert--clickable').forEach((el) => {
+        const open = () => {
+          const id = el.dataset.caseId;
+          if (!id) return;
+          scrollFraudSection('queue');
+          requestOpenFraudCase(id);
+        };
+        el.addEventListener('click', open);
+        el.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            open();
+          }
+        });
+      });
     }
 
     if (fraudAiInsights) {
@@ -3448,14 +3642,10 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
   }
 
   async function renderFraudOpsDashboard() {
+    if (casePreviewMode && selectedFraudCaseId) return;
     try {
-      const params = new URLSearchParams();
-      if (fraudFilter && fraudFilter !== 'all') params.set('status', fraudFilter);
-      if (fraudCategory && fraudCategory !== 'all') params.set('category', fraudCategory);
-      if (fraudSearchQuery) params.set('q', fraudSearchQuery);
-
       const [casesRes, campaignsRes] = await Promise.all([
-        fetch(getApiUrl(`/api/cases?${params.toString()}`)),
+        fetch(getApiUrl('/api/cases')),
         fetch(getApiUrl('/api/campaigns')),
       ]);
 
@@ -3469,23 +3659,46 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
       fraudCasesCache = casesJson.cases || [];
       fraudCampaignsCache = (campaignsJson.success ? (campaignsJson.campaigns || []) : [])
         .map(normalizeCampaignRecord);
+
+      const knownBefore = fraudCasesKnownIds;
+      const incomingPending = fraudCasesCache.filter(
+        (c) => c.status === 'Pending Review' && !knownBefore.has(c.id),
+      );
+      fraudCasesKnownIds = new Set(fraudCasesCache.map((c) => c.id));
+
+      if (incomingPending.length && knownBefore.size > 0 && !casePreviewMode) {
+        const newest = incomingPending.sort((a, b) => {
+          const ta = a.submittedAt ? new Date(a.submittedAt).getTime() : 0;
+          const tb = b.submittedAt ? new Date(b.submittedAt).getTime() : 0;
+          return tb - ta;
+        })[0];
+        showToast(`New report received — ${caseDisplayId(newest)}`);
+        requestOpenFraudCase(newest.id);
+      }
+
       rebuildFraudOpsNames(fraudCasesCache, fraudCampaignsCache);
       const stats = casesJson.stats || {};
 
       applyFraudKpis(stats, fraudCasesCache);
       renderFraudCaseTable();
       renderFraudCampaigns(fraudCampaignsCache);
-      renderRiskCharts(fraudCasesCache);
+      renderRiskCharts(
+        queuePageMode === 'review'
+          ? getMyReviewCases(fraudCasesCache)
+          : getPendingCases(fraudCasesCache),
+      );
       renderFraudAlerts(fraudCasesCache, fraudCampaignsCache);
       if (fraudView === 'campaigns') renderCampaignsPage();
       if (fraudView === 'all') {
         allCasesCache = fraudCasesCache.slice();
-        renderAllCasesPage();
+        applyAllCasesKpis(allCasesCache);
+        renderAllCasesTable();
       }
+      if (fraudView === 'queue') syncQueuePageHead();
     } catch (err) {
       console.error(err);
       if (fraudCaseList) {
-        fraudCaseList.innerHTML = `<tr class="fraud-queue__empty-row"><td colspan="7">Could not load cases. ${escapeHtml(err.message)}</td></tr>`;
+        fraudCaseList.innerHTML = `<tr class="fraud-queue__empty-row"><td colspan="8">Could not load cases. ${escapeHtml(err.message)}</td></tr>`;
       }
     }
   }
@@ -3636,6 +3849,45 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     return `${count} customer reports submitted.`;
   }
 
+  function buildCampaignTrendFromCases(campaign) {
+    const ids = new Set(campaign?.caseIds || []);
+    const members = (fraudCasesCache || []).filter((c) => ids.has(c.id));
+    const trend = [0, 0, 0, 0, 0, 0, 0];
+    const now = Date.now();
+    let placed = 0;
+
+    members.forEach((c) => {
+      const submitted = c.submittedAt || c.createdAt;
+      if (!submitted) return;
+      const daysAgo = Math.floor((now - new Date(submitted).getTime()) / 86400000);
+      if (daysAgo >= 0 && daysAgo < 7) {
+        trend[6 - daysAgo] += 1;
+        placed += 1;
+      }
+    });
+
+    if (placed === 0 && members.length > 0) {
+      const latest = members
+        .map((c) => c.submittedAt || c.createdAt)
+        .filter(Boolean)
+        .sort((a, b) => new Date(b) - new Date(a))[0];
+      if (latest) {
+        const daysAgo = Math.floor((now - new Date(latest).getTime()) / 86400000);
+        const bucket = daysAgo >= 0 && daysAgo < 7 ? 6 - daysAgo : 0;
+        trend[bucket] = members.length;
+      }
+    }
+
+    return trend;
+  }
+
+  function resolveCampaignTrend(campaign) {
+    const fromApi = campaign?.trend || [0, 0, 0, 0, 0, 0, 0];
+    if (fromApi.some((n) => n > 0)) return fromApi;
+    if ((campaign?.reportCount || 0) > 0) return buildCampaignTrendFromCases(campaign);
+    return fromApi;
+  }
+
   function selectCampaign(id) {
     selectedCampaignId = id;
     const campaign = (fraudCampaignsCache || []).find((c) => c.id === id);
@@ -3687,7 +3939,7 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     }
 
     if (fraudCampTrend) {
-      const trend = campaign.trend || [0, 0, 0, 0, 0, 0, 0];
+      const trend = resolveCampaignTrend(campaign);
       const dayLabels = getTrendDayLabels();
       const max = Math.max(...trend, 1);
       fraudCampTrend.innerHTML = trend.map((n, index) => {
@@ -3727,7 +3979,10 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     const visible = getVisibleFraudCases();
 
     if (!visible.length) {
-      fraudCaseList.innerHTML = `<tr class="fraud-queue__empty-row" id="fraud-list-empty"><td colspan="9">No reported cases yet. Customer fraud reports appear here.</td></tr>`;
+      const emptyMsg = queuePageMode === 'review'
+        ? 'No cases in your review queue. Open a pending case from Case Queue with View.'
+        : 'No cases awaiting triage. Closed cases appear in All Cases.';
+      fraudCaseList.innerHTML = `<tr class="fraud-queue__empty-row" id="fraud-list-empty"><td colspan="8">${emptyMsg}</td></tr>`;
       if (fraudQueuePager) fraudQueuePager.textContent = 'Showing 0 cases';
       if (fraudQueuePages) fraudQueuePages.hidden = true;
       return;
@@ -3744,8 +3999,7 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
       const icon = sourceIcon(source);
       const sub = caseSubtitle(c);
       return `
-        <tr data-case-id="${escapeHtml(c.id)}" class="${c.id === selectedFraudCaseId ? 'fraud-queue__row--active' : ''}">
-          <td><input type="checkbox" class="fraud-row-check" aria-label="Select ${escapeHtml(c.id)}" /></td>
+        <tr data-case-id="${escapeHtml(c.id)}" class="fraud-queue__row${c.id === selectedFraudCaseId ? ' fraud-queue__row--active' : ''}${c.status === 'Pending Review' ? ' fraud-queue__row--pending' : ''}">
           <td><span class="fraud-queue__type-icon" aria-hidden="true">${icon}</span></td>
           <td>
             <div class="fraud-queue__case-cell">
@@ -3758,7 +4012,7 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
           <td><span class="fraud-score-pill fraud-score-pill--${levelClass}">${c.fraudProbability || 0}</span></td>
           <td><span class="fraud-source">${icon} ${escapeHtml(source)}</span></td>
           <td><span class="fraud-status-pill fraud-status-pill--${statusClass}">${escapeHtml(c.status)}</span></td>
-          <td><button type="button" class="fraud-open-link" data-case-id="${escapeHtml(c.id)}">View →</button></td>
+          <td><button type="button" class="fraud-open-link" data-case-id="${escapeHtml(c.id)}">View report →</button></td>
         </tr>`;
     }).join('');
 
@@ -3774,7 +4028,13 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     if (fraudQueueCount) fraudQueueCount.textContent = String(n);
 
     fraudCaseList.querySelectorAll('.fraud-open-link').forEach((el) => {
-      el.addEventListener('click', () => selectFraudCase(el.dataset.caseId));
+      el.addEventListener('click', (e) => {
+        e.stopPropagation();
+        requestOpenFraudCase(el.dataset.caseId);
+      });
+    });
+    fraudCaseList.querySelectorAll('tr.fraud-queue__row--pending').forEach((row) => {
+      row.addEventListener('click', () => requestOpenFraudCase(row.dataset.caseId));
     });
   }
 
@@ -3897,7 +4157,7 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     } catch (err) {
       console.error(err);
       if (allCasesList) {
-        allCasesList.innerHTML = `<tr class="fraud-queue__empty-row"><td colspan="10">Could not load cases. ${escapeHtml(err.message)}</td></tr>`;
+        allCasesList.innerHTML = `<tr class="fraud-queue__empty-row"><td colspan="9">Could not load cases. ${escapeHtml(err.message)}</td></tr>`;
       }
     }
   }
@@ -3907,7 +4167,7 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     const visible = getFilteredAllCases();
 
     if (!visible.length) {
-      allCasesList.innerHTML = `<tr class="fraud-queue__empty-row"><td colspan="10">No cases match the current filters.</td></tr>`;
+      allCasesList.innerHTML = `<tr class="fraud-queue__empty-row"><td colspan="9">No cases match the current filters.</td></tr>`;
       if (allCasesPager) allCasesPager.textContent = 'Showing 0 cases';
       if (allCasesPages) allCasesPages.hidden = true;
       return;
@@ -3928,7 +4188,6 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
       const initial = assignee === 'Unassigned' ? '?' : String(assignee).trim().charAt(0).toUpperCase();
       return `
         <tr data-case-id="${escapeHtml(c.id)}">
-          <td><input type="checkbox" class="all-row-check" aria-label="Select ${escapeHtml(c.id)}" /></td>
           <td><span class="fraud-queue__type-icon" aria-hidden="true">${icon}</span></td>
           <td>
             <div class="fraud-queue__case-cell">
@@ -3962,7 +4221,7 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     }
 
     allCasesList.querySelectorAll('.all-case-open, .fraud-row-menu').forEach((el) => {
-      el.addEventListener('click', () => selectFraudCase(el.dataset.caseId));
+      el.addEventListener('click', () => requestOpenFraudCase(el.dataset.caseId));
     });
   }
 
@@ -4037,11 +4296,122 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     if (fraudCampIocModal) fraudCampIocModal.hidden = true;
   }
 
-  async function selectFraudCase(id) {
+  function shouldPromptTakeCase(c) {
+    return c?.status === 'Pending Review';
+  }
+
+  function requestOpenFraudCase(id) {
+    const cached = fraudCasesCache.find((x) => x.id === id);
+    if (shouldPreviewBeforeTake(id, cached)) {
+      selectFraudCase(id, { preview: true });
+      return;
+    }
+    selectFraudCase(id, { preview: false });
+  }
+
+  async function patchFraudCase(id, body) {
+    const res = await fetch(getApiUrl(`/api/cases/${encodeURIComponent(id)}`), {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    let json = {};
+    try {
+      json = await res.json();
+    } catch {
+      throw new Error('Could not update case');
+    }
+    if (!res.ok || !json.success) throw new Error(json.error || 'Could not update case');
+    return json.case;
+  }
+
+  async function confirmTakeCaseFromPreview() {
+    const id = selectedFraudCaseId;
+    if (!id) return;
+    const analystName = currentAnalystDisplayName();
+    const takeBtn = btnFraudPreviewTake;
+    if (takeBtn) {
+      takeBtn.disabled = true;
+      takeBtn.textContent = 'Taking…';
+    }
+    try {
+      const res = await fetch(getApiUrl(`/api/cases/${encodeURIComponent(id)}/take`), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ assigned_to: analystName }),
+      });
+      let json = {};
+      try {
+        json = await res.json();
+      } catch {
+        json = {};
+      }
+      if (res.status === 404) {
+        await patchFraudCase(id, { status: 'Under Review', assigned_to: analystName });
+      } else if (!res.ok || !json.success) {
+        throw new Error(json.error || 'Could not take case');
+      }
+      setCasePreviewMode(false);
+      showToast('Case assigned to you — now in My Reviews');
+      await selectFraudCase(id, { preview: false, refreshLists: true });
+    } catch (err) {
+      showToast(err.message || 'Could not take case');
+      setCasePreviewMode(true);
+    } finally {
+      if (takeBtn) {
+        takeBtn.disabled = false;
+        takeBtn.textContent = 'Work on this case';
+      }
+    }
+  }
+
+  async function releaseCaseToQueue() {
+    const id = selectedFraudCaseId;
+    if (!id) return;
+    const analystName = currentAnalystDisplayName();
+    if (btnFraudReleaseCase) {
+      btnFraudReleaseCase.disabled = true;
+      btnFraudReleaseCase.textContent = 'Returning…';
+    }
+    try {
+      const res = await fetch(getApiUrl(`/api/cases/${encodeURIComponent(id)}/release`), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ assigned_to: analystName }),
+      });
+      let json = {};
+      try {
+        json = await res.json();
+      } catch {
+        json = {};
+      }
+      if (res.status === 404) {
+        await patchFraudCase(id, { status: 'Pending Review', assigned_to: null });
+      } else if (!res.ok || !json.success) {
+        throw new Error(json.error || 'Could not return case to queue');
+      }
+      showToast('Case returned to Case Queue');
+      closeFraudDrawer();
+      queuePageMode = 'queue';
+      scrollFraudSection('queue');
+      await renderFraudOpsDashboard();
+    } catch (err) {
+      showToast(err.message || 'Could not return case to queue');
+    } finally {
+      if (btnFraudReleaseCase) {
+        btnFraudReleaseCase.disabled = false;
+        btnFraudReleaseCase.textContent = 'Return to queue';
+      }
+    }
+  }
+
+  async function selectFraudCase(id, { preview = false, refreshLists = true } = {}) {
     selectedFraudCaseId = id;
     fraudCopilotHistory = [];
     if (fraudCopilotMessages) fraudCopilotMessages.innerHTML = '';
     if (fraudModifyPanel) fraudModifyPanel.hidden = true;
+    setCasePreviewMode(preview);
+    setCaseReleaseBar(false);
     openFraudDrawer();
 
     if (fraudDetailEmpty) {
@@ -4054,13 +4424,11 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     if (fraudDetailBody) fraudDetailBody.hidden = true;
 
     try {
-      const analystName =
-        (typeof fraudSettings !== 'undefined' && fraudSettings.fullName) ||
-        fraudOpsAnalystName?.textContent ||
-        'Analyst';
+      const analystName = currentAnalystDisplayName();
 
+      const previewQuery = preview ? '&preview=true' : '';
       const response = await fetch(
-        getApiUrl(`/api/cases/${encodeURIComponent(id)}?assigned_to=${encodeURIComponent(analystName)}`),
+        getApiUrl(`/api/cases/${encodeURIComponent(id)}?assigned_to=${encodeURIComponent(analystName)}&assign=false${previewQuery}`),
       );
       const result = await response.json();
       if (!response.ok || !result.success) throw new Error(result.error || 'Case not found');
@@ -4074,7 +4442,7 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
         invCheck.customerNotificationDraft &&
         invCheck.managementSummary
       );
-      if (incomplete) {
+      if (incomplete && !preview) {
         if (fraudDetailEmpty?.querySelector('p')) {
           fraudDetailEmpty.querySelector('p').textContent =
             'Generating full AI investigation (summary, recommendation, docs)…';
@@ -4234,22 +4602,44 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
       }
 
       const closed = c.status === 'Closed';
-      applyFraudDecisionButtons(c.decision, closed);
+      const needsPreview = preview || c.status === 'Pending Review';
+      applyFraudDecisionButtons(c.decision, closed || needsPreview);
+      setCasePreviewMode(needsPreview);
+      const canRelease =
+        !needsPreview &&
+        c.status === 'Under Review' &&
+        (caseAssignedToMe(c) || queuePageMode === 'review');
+      setCaseReleaseBar(canRelease);
 
-      try {
-        const cached = fraudCasesCache.find((x) => x.id === id);
-        if (cached) {
-          cached.status = c.status;
-          cached.assignedTo = c.assignedTo;
+      if (!preview && refreshLists) {
+        try {
+          const cached = fraudCasesCache.find((x) => x.id === id);
+          if (cached) {
+            cached.status = c.status;
+            cached.assignedTo = c.assignedTo;
+          } else {
+            fraudCasesCache.unshift({
+              id: c.id,
+              status: c.status,
+              assignedTo: c.assignedTo,
+              submittedAt: c.submittedAt,
+              fraudProbability: c.fraudProbability,
+              fraudCategory: c.fraudCategory,
+              contentType: c.contentType || c.source,
+              preview: c.preview,
+            });
+          }
+          renderFraudCaseTable();
+          syncQueuePageHead();
+          const statsRes = await fetch(getApiUrl('/api/cases'));
+          const statsJson = await statsRes.json();
+          if (statsJson.success) {
+            if (statsJson.cases) fraudCasesCache = statsJson.cases;
+            if (statsJson.stats) applyFraudKpis(statsJson.stats, fraudCasesCache);
+          }
+        } catch {
+          /* ignore */
         }
-        renderFraudCaseTable();
-        const statsRes = await fetch(getApiUrl('/api/cases'));
-        const statsJson = await statsRes.json();
-        if (statsJson.success && statsJson.stats) {
-          applyFraudKpis(statsJson.stats, fraudCasesCache);
-        }
-      } catch {
-        /* ignore */
       }
     } catch (err) {
       console.error(err);
@@ -4259,6 +4649,10 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
 
   async function submitFraudDecision(outcome, action, analystNote) {
     if (!selectedFraudCaseId) return;
+    if (casePreviewMode) {
+      showToast('Take the case first to approve, modify, or reject');
+      return;
+    }
 
     const triggerBtn = outcome === 'approve'
       ? btnFraudApprove
@@ -4300,6 +4694,9 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
       if (fraudModifyPanel) fraudModifyPanel.hidden = true;
       await selectFraudCase(selectedFraudCaseId);
       await renderFraudOpsDashboard();
+      if (selectedFraudCase?.status === 'Closed') {
+        showToast('Case closed — find it in All Cases');
+      }
     } catch (err) {
       console.error(err);
       showToast(err.message || 'Could not save decision');
@@ -4579,37 +4976,12 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     });
   }
 
-  if (btnFraudExport) {
-    btnFraudExport.addEventListener('click', () => {
-      const rows = [
-        ['Case ID', 'Status', 'Category', 'Risk', 'Submitted', 'Source'],
-        ...fraudCasesCache.map((c) => [
-          c.id,
-          c.status,
-          c.fraudCategory || '',
-          String(c.fraudProbability || 0),
-          c.submittedAt || '',
-          c.contentType || '',
-        ]),
-      ];
-      const csv = rows.map((r) => r.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
-      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `byteshield-fraud-cases-${Date.now()}.csv`;
-      a.click();
-      URL.revokeObjectURL(url);
-      showToast('Case report exported');
-    });
-  }
-
   document.querySelectorAll('[data-fraud-nav]').forEach((btn) => {
     btn.addEventListener('click', () => {
       const nav = btn.dataset.fraudNav;
-      const filterNav = btn.dataset.fraudFilterNav;
+      const queueNavKey = btn.dataset.fraudNavKey || 'queue';
 
-      // All Cases page (must run before filterNav handling)
+      // All Cases page
       if (nav === 'all') {
         allStatus = 'all';
         allCategory = 'all';
@@ -4625,20 +4997,11 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
         return;
       }
 
-      if (filterNav) {
-        fraudFilter = filterNav;
-        fraudQuickFilter = null;
-        if (fraudStatusFilter) fraudStatusFilter.value = filterNav;
-        document.querySelectorAll('.fraud-filter').forEach((b) => {
-          b.classList.toggle('fraud-filter--active', b.dataset.fraudFilter === fraudFilter);
-        });
-        switchFraudView('queue');
-        if (filterNav === 'Under Review') setActiveFraudNav('review');
-        else if (filterNav === 'Pending Review') setActiveFraudNav('pending');
-        else setActiveFraudNav('queue');
-        renderFraudOpsDashboard();
+      if (nav === 'queue') {
+        openCaseQueue(queueNavKey);
         return;
       }
+
       scrollFraudSection(nav);
     });
   });
@@ -4683,6 +5046,18 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
       openNoteModal();
     });
   }
+  if (fraudNotesDetail) {
+    fraudNotesDetail.addEventListener('submit', (e) => {
+      const form = e.target.closest('#fraud-notes-comment-form');
+      if (!form) return;
+      e.preventDefault();
+      if (!selectedNoteId) {
+        showToast('Select a note first');
+        return;
+      }
+      submitNoteComment(selectedNoteId);
+    });
+  }
   if (fraudNoteForm) {
     fraudNoteForm.addEventListener('submit', saveNewNote);
   }
@@ -4695,53 +5070,36 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
   if (btnFraudNoteCancel) {
     btnFraudNoteCancel.addEventListener('click', closeNoteModal);
   }
+  if (btnFraudPreviewDecline) {
+    btnFraudPreviewDecline.addEventListener('click', () => closeFraudDrawer());
+  }
+  if (btnFraudPreviewTake) {
+    btnFraudPreviewTake.addEventListener('click', () => {
+      confirmTakeCaseFromPreview();
+    });
+  }
+  if (btnFraudReleaseCase) {
+    btnFraudReleaseCase.addEventListener('click', () => {
+      releaseCaseToQueue();
+    });
+  }
   if (btnNotesFilters) {
     btnNotesFilters.addEventListener('click', () => {
       showToast('Use the dropdown filters above to refine notes');
     });
   }
 
-  document.querySelectorAll('[data-fraud-quick]').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const q = btn.dataset.fraudQuick;
-      document.querySelectorAll('[data-fraud-quick]').forEach((b) => {
-        b.classList.toggle('fraud-quick-filter--active', b === btn);
-      });
-      if (q === 'high') {
-        fraudQuickFilter = 'high';
-        fraudFilter = 'all';
-        if (fraudStatusFilter) fraudStatusFilter.value = 'all';
-      } else if (q === 'review') {
-        fraudQuickFilter = null;
-        fraudFilter = 'Under Review';
-        if (fraudStatusFilter) fraudStatusFilter.value = 'Under Review';
-      } else if (q === 'pending') {
-        fraudQuickFilter = null;
-        fraudFilter = 'Pending Review';
-        if (fraudStatusFilter) fraudStatusFilter.value = 'Pending Review';
-      } else {
-        fraudQuickFilter = null;
-        fraudFilter = 'all';
-        if (fraudStatusFilter) fraudStatusFilter.value = 'all';
-      }
-      document.querySelectorAll('.fraud-filter').forEach((b) => {
-        b.classList.toggle('fraud-filter--active', b.dataset.fraudFilter === fraudFilter);
-      });
-      switchFraudView('queue');
-      setActiveFraudNav('queue');
-      renderFraudOpsDashboard();
-    });
-  });
-
   if (fraudStatusFilter) {
     fraudStatusFilter.addEventListener('change', () => {
-      fraudFilter = fraudStatusFilter.value || 'all';
-      fraudQuickFilter = null;
+      const next = fraudStatusFilter.value || 'all';
+      fraudFilter = next === 'Closed' ? 'all' : next;
+      if (next === 'Closed') fraudStatusFilter.value = 'all';
       document.querySelectorAll('.fraud-filter').forEach((b) => {
         b.classList.toggle('fraud-filter--active', b.dataset.fraudFilter === fraudFilter);
       });
-      document.querySelectorAll('[data-fraud-quick]').forEach((b) => b.classList.remove('fraud-quick-filter--active'));
-      renderFraudOpsDashboard();
+      renderFraudCaseTable();
+      syncQueuePageHead();
+      if (fraudQueuePageBadge) fraudQueuePageBadge.textContent = String(getVisibleFraudCases().length);
     });
   }
 
@@ -4779,8 +5137,7 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
 
   if (btnFraudCampViewCases) {
     btnFraudCampViewCases.addEventListener('click', () => {
-      switchFraudView('queue');
-      setActiveFraudNav('queue');
+      openCaseQueue('queue');
       showToast('Showing case queue — filter by campaign cases as needed');
     });
   }
@@ -4826,58 +5183,6 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
   [allStatusFilter, allCategoryFilter, allRiskFilter, allSourceFilter].forEach((el) => {
     el?.addEventListener('change', refreshAllFiltersFromControls);
   });
-
-  if (allSelectAll) {
-    allSelectAll.addEventListener('change', () => {
-      allCasesList?.querySelectorAll('.all-row-check').forEach((cb) => {
-        cb.checked = allSelectAll.checked;
-      });
-    });
-  }
-
-  if (btnAllAdvancedSearch) {
-    btnAllAdvancedSearch.addEventListener('click', () => {
-      allCasesSearch?.focus();
-      showToast('Use the search and filters above');
-    });
-  }
-
-  if (btnAllExport) {
-    btnAllExport.addEventListener('click', () => {
-      const rows = [
-        ['Case ID', 'Status', 'Category', 'Risk', 'Submitted', 'Source'],
-        ...getFilteredAllCases().map((c) => [
-          c.id,
-          c.status,
-          c.fraudCategory || '',
-          String(c.fraudProbability || 0),
-          c.submittedAt || '',
-          c.contentType || '',
-        ]),
-      ];
-      const csv = rows.map((r) => r.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
-      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `byteshield-all-cases-${Date.now()}.csv`;
-      a.click();
-      URL.revokeObjectURL(url);
-      showToast('Cases exported');
-    });
-  }
-
-  if (btnAllBulk) {
-    btnAllBulk.addEventListener('click', () => showToast('Select cases with checkboxes, then use View to update'));
-  }
-
-  if (fraudSelectAll) {
-    fraudSelectAll.addEventListener('change', () => {
-      fraudCaseList?.querySelectorAll('.fraud-row-check').forEach((cb) => {
-        cb.checked = fraudSelectAll.checked;
-      });
-    });
-  }
 
   if (btnFraudApprove) {
     btnFraudApprove.addEventListener('click', () => {
@@ -4925,11 +5230,15 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
 
   document.querySelectorAll('.fraud-filter').forEach((btn) => {
     btn.addEventListener('click', () => {
-      fraudFilter = btn.dataset.fraudFilter;
+      const next = btn.dataset.fraudFilter || 'all';
+      fraudFilter = next === 'Closed' ? 'all' : next;
+      if (fraudStatusFilter) fraudStatusFilter.value = fraudFilter;
       document.querySelectorAll('.fraud-filter').forEach((b) => {
         b.classList.toggle('fraud-filter--active', b.dataset.fraudFilter === fraudFilter);
       });
-      renderFraudOpsDashboard();
+      renderFraudCaseTable();
+      syncQueuePageHead();
+      if (fraudQueuePageBadge) fraudQueuePageBadge.textContent = String(getVisibleFraudCases().length);
     });
   });
 
@@ -4939,7 +5248,8 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
       clearTimeout(searchTimer);
       searchTimer = setTimeout(() => {
         fraudSearchQuery = fraudSearch.value.trim();
-        renderFraudOpsDashboard();
+        renderFraudCaseTable();
+        if (fraudQueuePageBadge) fraudQueuePageBadge.textContent = String(getVisibleFraudCases().length);
       }, 250);
     });
   }
@@ -4947,7 +5257,9 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
   if (fraudCategoryFilter) {
     fraudCategoryFilter.addEventListener('change', () => {
       fraudCategory = fraudCategoryFilter.value;
-      renderFraudOpsDashboard();
+      renderFraudCaseTable();
+      syncQueuePageHead();
+      if (fraudQueuePageBadge) fraudQueuePageBadge.textContent = String(getVisibleFraudCases().length);
     });
   }
 

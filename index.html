@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#0a1628" />
   <meta name="description" content="مصرف الإنماء – ByteShield: فحص ذكي للاحتيال والتصيد الاحتيالي" />
   <title>الإنماء | ByteShield</title>
-  <link rel="stylesheet" href="styles.css?v=21" />
+  <link rel="stylesheet" href="styles.css?v=29" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -34,8 +34,14 @@
 
         <div class="alinma-header__actions">
           <div class="mode-tabs mode-tabs--header" role="tablist" aria-label="وضع العرض">
-            <button type="button" class="mode-tab mode-tab--header mode-tab--active" data-mode="user" role="tab" aria-selected="true">شخصي</button>
-            <button type="button" class="mode-tab mode-tab--header mode-tab--soc" data-mode="fraud" role="tab" aria-selected="false">Fraud Ops</button>
+            <button type="button" class="mode-tab mode-tab--header mode-tab--active" data-mode="user" role="tab" aria-selected="true">
+              <span class="mode-tab__glyph" aria-hidden="true">👤</span>
+              <span>شخصي</span>
+            </button>
+            <button type="button" class="mode-tab mode-tab--header mode-tab--soc" data-mode="fraud" role="tab" aria-selected="false">
+              <span class="mode-tab__glyph" aria-hidden="true">🛡</span>
+              <span>Fraud Operations</span>
+            </button>
           </div>
           <button type="button" class="btn-menu" id="btn-alinma-menu" aria-label="القائمة" aria-expanded="false" aria-controls="nav-drawer">
             <span></span><span></span><span></span>
@@ -367,9 +373,19 @@
 
       <!-- FRAUD OPERATIONS PORTAL -->
       <div class="fraud-ops" id="fraud-ops" hidden>
-        <aside class="fraud-ops__nav" aria-label="Fraud Ops navigation">
+        <aside class="fraud-ops__nav" aria-label="Fraud Operations navigation">
           <div class="fraud-ops__brand">
-            <span class="fraud-ops__brand-pill">Fraud Ops</span>
+            <span class="fraud-ops__brand-icon" aria-hidden="true">
+              <svg viewBox="0 0 32 32" width="32" height="32" fill="none">
+                <path d="M16 3L27 7.5V15c0 7.4-4.7 13.8-11 16.1C9.7 28.8 5 22.4 5 15V7.5L16 3Z" fill="currentColor" opacity="0.18"/>
+                <path d="M16 5.5L24.5 9V15c0 5.8-3.7 10.9-8.5 12.7C10.7 25.9 7 20.8 7 15V9L16 5.5Z" stroke="currentColor" stroke-width="1.5"/>
+                <path d="M12 15.5l2.5 2.5L20 12.5" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </span>
+            <div class="fraud-ops__brand-copy">
+              <strong class="fraud-ops__brand-title">Fraud Operations</strong>
+              <span class="fraud-ops__brand-sub">Alinma Bank · ByteShield</span>
+            </div>
           </div>
 
           <nav class="fraud-ops__nav-groups">
@@ -391,8 +407,9 @@
             </div>
             <div class="fraud-ops__nav-group">
               <p class="fraud-ops__nav-label">Investigation</p>
-              <button type="button" class="fraud-nav-item" data-fraud-nav="queue" data-fraud-filter-nav="Under Review">
+              <button type="button" class="fraud-nav-item" data-fraud-nav="queue" data-fraud-nav-key="review">
                 <span class="fraud-nav-item__icon" aria-hidden="true">◉</span> My Reviews
+                <span class="fraud-ops__count fraud-ops__count--review" id="fraud-review-count">0</span>
               </button>
               <button type="button" class="fraud-nav-item" data-fraud-nav="playbooks">
                 <span class="fraud-nav-item__icon" aria-hidden="true">◇</span> Playbooks
@@ -427,8 +444,8 @@
             <div class="fraud-ops__topbar-brand">
               <span class="fraud-ops__shield" aria-hidden="true">🛡</span>
               <div>
-                <strong>alinma الإنماء</strong>
-                <span>ByteShield Fraud Operations</span>
+                <strong>Alinma Fraud Operations</strong>
+                <span>Investigation &amp; case management portal</span>
               </div>
             </div>
             <div class="fraud-ops__topbar-actions">
@@ -498,14 +515,6 @@
                 <h3>AI Insights</h3>
                 <p id="fraud-ai-insights">AI will surface patterns once cases are reported.</p>
               </section>
-              <section class="fraud-widget">
-                <h3>Quick Actions</h3>
-                <div class="fraud-quick-actions">
-                  <button type="button" class="fraud-quick-btn" data-fraud-nav="queue">Bulk Update Cases</button>
-                  <button type="button" class="fraud-quick-btn" id="btn-fraud-export">Export Report</button>
-                  <button type="button" class="fraud-quick-btn" data-fraud-nav="playbooks">Open Playbooks</button>
-                </div>
-              </section>
             </div>
           </div>
 
@@ -514,10 +523,10 @@
             <div class="fraud-page-head">
               <div>
                 <h1 class="fraud-page-head__title">
-                  Case Queue
+                  <span id="fraud-queue-page-title">Case Queue</span>
                   <span class="fraud-page-head__badge" id="fraud-queue-page-badge">0</span>
                 </h1>
-                <p class="fraud-page-head__sub">Review and take action on customer-submitted fraud cases.</p>
+                <p class="fraud-page-head__sub" id="fraud-queue-page-sub">New reports awaiting triage. Open a report to read it — choose whether to work on it.</p>
               </div>
               <button type="button" class="fraud-page-head__back" id="btn-fraud-back-services">عودة للخدمات</button>
             </div>
@@ -556,11 +565,10 @@
               <section class="fraud-queue fraud-queue--page" id="fraud-queue-section">
                 <div class="fraud-queue__controls fraud-queue__controls--bar">
                   <input type="search" id="fraud-search" class="fraud-ops__search-input" placeholder="Search cases by ID, URL, or email…" autocomplete="off" />
-                  <select id="fraud-status-filter" class="fraud-ops__select" aria-label="Status">
-                    <option value="all">All Status</option>
+                  <select id="fraud-status-filter" class="fraud-ops__select" aria-label="Status" hidden>
+                    <option value="all">All Open</option>
                     <option value="Pending Review">Pending Review</option>
                     <option value="Under Review">Under Review</option>
-                    <option value="Closed">Closed</option>
                   </select>
                   <div class="fraud-ops__category">
                     <label for="fraud-category-filter" class="visually-hidden">Category</label>
@@ -576,17 +584,15 @@
                   </div>
                   <button type="button" class="fraud-filter-btn" id="btn-fraud-filters" aria-label="Filters">Filters</button>
                   <div class="fraud-ops__filters" hidden>
-                    <button type="button" class="fraud-filter fraud-filter--active" data-fraud-filter="all">All</button>
+                    <button type="button" class="fraud-filter fraud-filter--active" data-fraud-filter="all">All Open</button>
                     <button type="button" class="fraud-filter" data-fraud-filter="Pending Review">Pending</button>
                     <button type="button" class="fraud-filter" data-fraud-filter="Under Review">In Review</button>
-                    <button type="button" class="fraud-filter" data-fraud-filter="Closed">Closed</button>
                   </div>
                 </div>
                 <div class="fraud-queue__table-wrap">
                   <table class="fraud-queue__table fraud-queue__table--rich">
                     <thead>
                       <tr>
-                        <th scope="col" class="fraud-queue__check-col"><input type="checkbox" id="fraud-select-all" aria-label="Select all" /></th>
                         <th scope="col"><span class="visually-hidden">Type</span></th>
                         <th scope="col">Case ID</th>
                         <th scope="col">Submitted</th>
@@ -599,7 +605,7 @@
                     </thead>
                     <tbody id="fraud-case-list">
                       <tr class="fraud-queue__empty-row" id="fraud-list-empty">
-                        <td colspan="9">No reported cases yet. Customer fraud reports appear here.</td>
+                        <td colspan="8">No reported cases yet. Customer fraud reports appear here.</td>
                       </tr>
                     </tbody>
                   </table>
@@ -632,14 +638,6 @@
                   <ul class="fraud-bars" id="fraud-threat-bars">
                     <li class="fraud-bars__empty">No threat data yet.</li>
                   </ul>
-                </div>
-                <div class="fraud-analytics__card">
-                  <h3>Quick Filters</h3>
-                  <div class="fraud-quick-filters">
-                    <button type="button" class="fraud-quick-filter" data-fraud-quick="high">High Risk Cases</button>
-                    <button type="button" class="fraud-quick-filter" data-fraud-quick="review">My Reviews</button>
-                    <button type="button" class="fraud-quick-filter" data-fraud-quick="all">Unassigned</button>
-                  </div>
                 </div>
               </aside>
             </div>
@@ -726,7 +724,6 @@
                   <table class="fraud-queue__table fraud-queue__table--rich">
                     <thead>
                       <tr>
-                        <th scope="col" class="fraud-queue__check-col"><input type="checkbox" id="all-select-all" aria-label="Select all" /></th>
                         <th scope="col"><span class="visually-hidden">Type</span></th>
                         <th scope="col">Case ID</th>
                         <th scope="col">Submitted</th>
@@ -740,7 +737,7 @@
                     </thead>
                     <tbody id="all-cases-list">
                       <tr class="fraud-queue__empty-row">
-                        <td colspan="10">No cases yet. Customer fraud reports appear here.</td>
+                        <td colspan="9">No cases yet. Customer fraud reports appear here.</td>
                       </tr>
                     </tbody>
                   </table>
@@ -773,15 +770,6 @@
                   <ul class="fraud-bars" id="all-risk-bars">
                     <li class="fraud-bars__empty">No risk data yet.</li>
                   </ul>
-                </div>
-                <div class="fraud-analytics__card">
-                  <h3>Quick Actions</h3>
-                  <div class="fraud-quick-filters">
-                    <button type="button" class="fraud-quick-filter" id="btn-all-advanced-search">Advanced Search</button>
-                    <button type="button" class="fraud-quick-filter" id="btn-all-export">Export Cases</button>
-                    <button type="button" class="fraud-quick-filter" id="btn-all-bulk">Bulk Update</button>
-                    <button type="button" class="fraud-quick-filter" data-fraud-nav="playbooks">Open Playbooks</button>
-                  </div>
                 </div>
               </aside>
             </div>
@@ -1023,6 +1011,25 @@
             <button type="button" class="fraud-ops__drawer-close" id="btn-fraud-close-drawer" aria-label="Close case">×</button>
           </div>
 
+          <div class="fraud-detail__preview-bar" id="fraud-detail-preview-bar" hidden>
+            <div class="fraud-detail__preview-bar-text">
+              <strong>Work on this case?</strong>
+              <span>Read the customer report below first. Nothing is assigned to you until you choose to work on it.</span>
+            </div>
+            <div class="fraud-detail__preview-bar-actions">
+              <button type="button" class="btn btn--ghost" id="btn-fraud-preview-decline">Not now</button>
+              <button type="button" class="btn btn--primary" id="btn-fraud-preview-take">Work on this case</button>
+            </div>
+          </div>
+
+          <div class="fraud-detail__release-bar" id="fraud-detail-release-bar" hidden>
+            <div class="fraud-detail__release-bar-text">
+              <strong>In your review</strong>
+              <span>Not working on this anymore? Return it to the Case Queue for another analyst.</span>
+            </div>
+            <button type="button" class="btn btn--secondary" id="btn-fraud-release-case">Return to queue</button>
+          </div>
+
           <div class="fraud-ops__detail-empty" id="fraud-detail-empty">
             <h3>Select a case</h3>
             <p>Choose a reported case from the queue. AI investigation is already prepared — review and decide.</p>
@@ -1052,7 +1059,7 @@
               <p id="fraud-detail-summary">—</p>
             </div>
 
-            <div class="fraud-detail__section">
+            <div class="fraud-detail__section fraud-detail__customer-report">
               <h4>Customer Report</h4>
               <pre id="fraud-detail-evidence" class="fraud-detail__evidence"></pre>
               <div id="fraud-detail-screenshot-wrap" class="fraud-detail__shot" hidden>
@@ -1494,7 +1501,7 @@
             <li>
               <button type="button" class="nav-drawer__item nav-drawer__item--fraud" data-nav="byteshield" data-mode="fraud">
                 <span class="nav-drawer__item-icon" aria-hidden="true">🔍</span>
-                <span class="nav-drawer__item-text">Fraud Ops — Investigation Portal</span>
+                <span class="nav-drawer__item-text">Fraud Operations — Investigation Portal</span>
               </button>
             </li>
           </ul>
@@ -1534,10 +1541,10 @@
   <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
   <script src="/js/supabase-env.js"></script>
   <script src="js/supabase-config.js?v=2"></script>
-  <script src="js/fraud-ops-live.js?v=1"></script>
+  <script src="js/fraud-ops-live.js?v=3"></script>
   <script src="js/campaign-ids.js?v=1"></script>
   <script src="js/fraud-ops-names.js?v=1"></script>
   <script src="playbooks-data.js?v=2"></script>
-  <script src="app.js?v=31"></script>
+  <script src="app.js?v=49"></script>
 </body>
 </html>

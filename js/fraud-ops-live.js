@@ -94,6 +94,19 @@
     return data.note;
   }
 
+  async function listNoteComments(noteId) {
+    const data = await jsonFetch("/api/notes/" + encodeURIComponent(noteId) + "/comments");
+    return data.comments || [];
+  }
+
+  async function addNoteComment(noteId, note, analystId) {
+    const data = await jsonFetch("/api/notes/" + encodeURIComponent(noteId) + "/comments", {
+      method: "POST",
+      body: JSON.stringify({ note, analyst_id: analystId }),
+    });
+    return data.comment;
+  }
+
   async function deleteNote(noteId, analystId) {
     const qs = analystId ? "?analyst_id=" + encodeURIComponent(analystId) : "";
     await jsonFetch("/api/notes/" + encodeURIComponent(noteId) + qs, { method: "DELETE" });
@@ -152,6 +165,8 @@
     listNotes,
     listCaseNotes,
     addCaseNote,
+    listNoteComments,
+    addNoteComment,
     deleteNote,
     startRealtime,
     stopRealtime,

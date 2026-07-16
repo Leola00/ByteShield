@@ -7,6 +7,17 @@
  */
 const express = require("express");
 const fraudCases = require("../services/fraudCasesService");
+const {
+  isSupabaseNetworkError,
+  logSupabaseFallbackOnce,
+} = require("../services/supabaseResilience");
+
+function analystsMatch(assignee, analyst) {
+  const a = String(assignee || "").trim().toLowerCase();
+  const b = String(analyst || "").trim().toLowerCase();
+  if (!a || !b) return true;
+  return a === b || a.includes(b) || b.includes(a);
+}
 
 function createFraudOpsRouter({ casesStore, investigation, openai, callOpenAiJson } = {}) {
   const router = express.Router();
@@ -53,25 +64,28 @@ function createFraudOpsRouter({ casesStore, investigation, openai, callOpenAiJso
     }
   });
 
+  async function respondLocalCases(req, res) {
+    if (!casesStore) {
+      return res.status(503).json({
+        success: false,
+        error: "Supabase is not configured and local case store is unavailable",
+      });
+    }
+    const { status, category, q } = req.query;
+    const list = await casesStore.listCases({ status, category, q });
+    return res.json({
+      success: true,
+      source: "local",
+      stats: await casesStore.getStats(),
+      cases: list.map(toListItem),
+    });
+  }
+
   /** GET /api/cases — every fraud case, newest first */
   router.get("/cases", async (req, res) => {
     try {
       if (!fraudCases.isConfigured) {
-        // Fall back to legacy JSON store so the UI still works offline
-        if (casesStore) {
-          const { status, category, q } = req.query;
-          const list = await casesStore.listCases({ status, category, q });
-          return res.json({
-            success: true,
-            source: "local",
-            stats: await casesStore.getStats(),
-            cases: list.map(toListItem),
-          });
-        }
-        return res.status(503).json({
-          success: false,
-          error: "Supabase is not configured",
-        });
+        return respondLocalCases(req, res);
       }
 
       const { status, category, q } = req.query;
@@ -99,6 +113,10 @@ function createFraudOpsRouter({ casesStore, investigation, openai, callOpenAiJso
         cases: list.map(toListItem),
       });
     } catch (error) {
+      if (isSupabaseNetworkError(error) && casesStore) {
+        logSupabaseFallbackOnce("GET /api/cases", error);
+        return respondLocalCases(req, res);
+      }
       console.error("GET /api/cases Error:", error);
       res.status(500).json({ success: false, error: error.message });
     }
@@ -132,35 +150,137 @@ function createFraudOpsRouter({ casesStore, investigation, openai, callOpenAiJso
     }
   });
 
-  /** GET /api/cases/:id — open case; auto-assign when pending */
-  router.get("/cases/:id", async (req, res) => {
+  /** POST /api/cases/:id/take — assign pending case to analyst (explicit take only) */
+  router.post("/cases/:id/take", async (req, res) => {
     try {
-      const assignedTo = String(req.query.assigned_to || req.query.analyst || "Analyst");
+      const assignedTo = String(
+        req.body?.assigned_to || req.body?.assignedTo || req.query.assigned_to || "Analyst",
+      );
 
       if (fraudCases.isConfigured) {
         let found = await fraudCases.getCaseByIdOrCaseId(req.params.id);
         if (!found) {
           return res.status(404).json({ success: false, error: "Case not found" });
         }
+        if (found.status === "Closed") {
+          return res.status(400).json({ success: false, error: "Case is closed" });
+        }
         if (found.status === "Pending Review") {
-          try {
-            found = await fraudCases.patchCase(found.id, {
-              status: "Under Review",
-              assigned_to: assignedTo,
-            });
-          } catch (assignErr) {
-            // Still open the case if assign/update fails (e.g. missing updated_at column)
-            console.warn("Auto-assign skipped:", assignErr.message);
-            found = {
-              ...found,
-              status: found.status || "Pending Review",
-              assignedTo: found.assignedTo || assignedTo,
-            };
-          }
+          found = await fraudCases.patchCase(found.id, {
+            status: "Under Review",
+            assigned_to: assignedTo,
+          });
+        }
+        return res.json({ success: true, case: found });
+      }
+
+      if (!casesStore) {
+        return res.status(503).json({ success: false, error: "Case store unavailable" });
+      }
+
+      let found = await casesStore.getCaseById(req.params.id);
+      if (!found) {
+        return res.status(404).json({ success: false, error: "Case not found" });
+      }
+      if (found.status === "Pending Review") {
+        found = await casesStore.markUnderReview(found.id, assignedTo);
+      }
+      return res.json({ success: true, case: found });
+    } catch (error) {
+      if (isSupabaseNetworkError(error) && casesStore) {
+        logSupabaseFallbackOnce("POST /api/cases/:id/take", error);
+        const assignedTo = String(
+          req.body?.assigned_to || req.body?.assignedTo || req.query.assigned_to || "Analyst",
+        );
+        let found = await casesStore.getCaseById(req.params.id);
+        if (!found) {
+          return res.status(404).json({ success: false, error: "Case not found" });
+        }
+        if (found.status === "Pending Review") {
+          found = await casesStore.markUnderReview(found.id, assignedTo);
+        }
+        return res.json({ success: true, case: found, source: "local" });
+      }
+      console.error("POST /api/cases/:id/take Error:", error);
+      res.status(error.status || 500).json({ success: false, error: error.message });
+    }
+  });
+
+  /** POST /api/cases/:id/release — return under-review case to pending queue */
+  router.post("/cases/:id/release", async (req, res) => {
+    try {
+      const analyst = String(
+        req.body?.assigned_to || req.body?.assignedTo || req.body?.analyst || "",
+      ).trim();
+
+      if (fraudCases.isConfigured) {
+        let found = await fraudCases.getCaseByIdOrCaseId(req.params.id);
+        if (!found) {
+          return res.status(404).json({ success: false, error: "Case not found" });
+        }
+        if (found.status === "Closed") {
+          return res.status(400).json({ success: false, error: "Case is closed" });
+        }
+        if (found.status !== "Under Review") {
+          return res.json({ success: true, case: found });
+        }
+        if (analyst && found.assignedTo && !analystsMatch(found.assignedTo, analyst)) {
+          return res.status(403).json({
+            success: false,
+            error: "Only the assigned analyst can return this case to the queue",
+          });
+        }
+        found = await fraudCases.patchCase(found.id, {
+          status: "Pending Review",
+          assigned_to: null,
+        });
+        return res.json({ success: true, case: found });
+      }
+
+      if (!casesStore) {
+        return res.status(503).json({ success: false, error: "Case store unavailable" });
+      }
+
+      let found = await casesStore.getCaseById(req.params.id);
+      if (!found) {
+        return res.status(404).json({ success: false, error: "Case not found" });
+      }
+      if (found.status === "Under Review") {
+        found = await casesStore.releaseToQueue(found.id);
+      }
+      return res.json({ success: true, case: found });
+    } catch (error) {
+      if (isSupabaseNetworkError(error) && casesStore) {
+        logSupabaseFallbackOnce("POST /api/cases/:id/release", error);
+        let found = await casesStore.getCaseById(req.params.id);
+        if (!found) {
+          return res.status(404).json({ success: false, error: "Case not found" });
+        }
+        if (found.status === "Under Review") {
+          found = await casesStore.releaseToQueue(found.id);
+        }
+        return res.json({ success: true, case: found, source: "local" });
+      }
+      console.error("POST /api/cases/:id/release Error:", error);
+      res.status(error.status || 500).json({ success: false, error: error.message });
+    }
+  });
+
+  /** GET /api/cases/:id — read case (never auto-assign; use POST /take) */
+  router.get("/cases/:id", async (req, res) => {
+    try {
+      const previewOnly =
+        req.query.preview === "true" || req.query.preview === "1";
+
+      if (fraudCases.isConfigured) {
+        let found = await fraudCases.getCaseByIdOrCaseId(req.params.id);
+        if (!found) {
+          return res.status(404).json({ success: false, error: "Case not found" });
         }
 
         // Ensure full AI investigation package (screenshot cases often only had a stub)
         if (
+          !previewOnly &&
           investigation &&
           typeof investigation.generateInvestigation === "function" &&
           !investigation.isInvestigationComplete(found.investigation)
@@ -205,15 +325,16 @@ function createFraudOpsRouter({ casesStore, investigation, openai, callOpenAiJso
       if (!found) {
         return res.status(404).json({ success: false, error: "Case not found" });
       }
-      if (found.status === "Pending Review") {
-        try {
-          found = await casesStore.markUnderReview(found.id, assignedTo);
-        } catch (assignErr) {
-          console.warn("Auto-assign skipped:", assignErr.message);
-        }
-      }
       res.json({ success: true, case: found });
     } catch (error) {
+      if (isSupabaseNetworkError(error) && casesStore) {
+        logSupabaseFallbackOnce("GET /api/cases/:id", error);
+        let found = await casesStore.getCaseById(req.params.id);
+        if (!found) {
+          return res.status(404).json({ success: false, error: "Case not found" });
+        }
+        return res.json({ success: true, case: found, source: "local" });
+      }
       console.error("GET /api/cases/:id Error:", error);
       res.status(500).json({ success: false, error: error.message });
     }

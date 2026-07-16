@@ -7,6 +7,10 @@ const analysts = require("../services/analystsService");
 const notes = require("../services/notesService");
 const fraudCases = require("../services/fraudCasesService");
 const { isConfigured } = require("../supabase");
+const {
+  isSupabaseNetworkError,
+  logSupabaseFallbackOnce,
+} = require("../services/supabaseResilience");
 
 function createOpsExtrasRouter() {
   const router = express.Router();
@@ -98,6 +102,10 @@ function createOpsExtrasRouter() {
       });
       res.json({ success: true, notes: list });
     } catch (error) {
+      if (isSupabaseNetworkError(error)) {
+        logSupabaseFallbackOnce("GET /api/notes", error);
+        return res.json({ success: true, notes: [], source: "local" });
+      }
       res.status(500).json({ success: false, error: error.message });
     }
   });
@@ -121,9 +129,46 @@ function createOpsExtrasRouter() {
         caseUuid: c.uuid,
         analystId: req.body?.analyst_id || req.body?.analystId,
         note: req.body?.note,
+        parentNoteId: req.body?.parent_note_id || req.body?.parentNoteId || null,
       });
       res.status(201).json({ success: true, note: created });
     } catch (error) {
+      res.status(error.status || 500).json({ success: false, error: error.message });
+    }
+  });
+
+  router.get("/notes/:noteId/comments", async (req, res) => {
+    try {
+      if (!isConfigured) return res.json({ success: true, comments: [] });
+      const parent = await notes.getById(req.params.noteId);
+      if (!parent) return res.status(404).json({ success: false, error: "Note not found" });
+      const comments = await notes.listCommentsByParentId(req.params.noteId);
+      res.json({ success: true, comments });
+    } catch (error) {
+      if (isSupabaseNetworkError(error)) {
+        logSupabaseFallbackOnce("GET /api/notes/:noteId/comments", error);
+        return res.json({ success: true, comments: [], source: "local" });
+      }
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  router.post("/notes/:noteId/comments", async (req, res) => {
+    try {
+      if (!isConfigured) {
+        return res.status(503).json({ success: false, error: "Supabase is not configured" });
+      }
+      const parent = await notes.getById(req.params.noteId);
+      if (!parent) return res.status(404).json({ success: false, error: "Note not found" });
+      const created = await notes.createNote({
+        caseUuid: parent.caseUuid,
+        analystId: req.body?.analyst_id || req.body?.analystId,
+        note: req.body?.note || req.body?.text,
+        parentNoteId: parent.id,
+      });
+      res.status(201).json({ success: true, comment: created });
+    } catch (error) {
+      console.error("POST /notes/:noteId/comments Error:", error.message);
       res.status(error.status || 500).json({ success: false, error: error.message });
     }
   });

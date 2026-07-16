@@ -14,6 +14,11 @@ const fraudCasesService = require("./services/fraudCasesService");
 const { createFraudOpsRouter } = require("./routes/fraudOps");
 const { createOpsExtrasRouter } = require("./routes/opsExtras");
 const { buildCampaignsFromCases } = require("./services/campaignsService");
+const {
+  isSupabaseNetworkError,
+  logSupabaseFallbackOnce,
+} = require("./services/supabaseResilience");
+const { getSupabase } = require("./supabase");
 
 const app = express();
 
@@ -1227,6 +1232,9 @@ app.get("/api/supabase-config", (_req, res) => {
   });
 });
 
+// Auth, analysts, internal notes (register before case routes)
+app.use("/api", createOpsExtrasRouter());
+
 // POST /api/report · GET|POST /api/cases · GET|PATCH /api/cases/:id · POST /api/cases/:id/decision
 app.use(
   "/api",
@@ -1238,8 +1246,7 @@ app.use(
   }),
 );
 
-// Auth, analysts, internal notes
-app.use("/api", createOpsExtrasRouter());
+// Legacy investigate route kept below fraud ops router
 
 app.post("/api/cases/:id/investigate", async (req, res) => {
   try {
@@ -1259,8 +1266,8 @@ app.post("/api/cases/:id/investigate", async (req, res) => {
       try {
         saved = await fraudCasesService.patchCase(found.id, {
           investigation: package_,
-          status: found.status === "Closed" ? "Closed" : "Under Review",
-          assigned_to: found.assignedTo || "Analyst",
+          status: found.status === "Closed" ? "Closed" : found.status,
+          assigned_to: found.assignedTo || undefined,
           ai_summary: package_?.aiInvestigationSummary || found.aiSummary,
           ai_recommendation: package_?.recommendation?.action || found.aiRecommendation,
         });
@@ -1269,8 +1276,8 @@ app.post("/api/cases/:id/investigate", async (req, res) => {
         saved = {
           ...found,
           investigation: package_,
-          status: found.status === "Closed" ? "Closed" : "Under Review",
-          assignedTo: found.assignedTo || "Analyst",
+          status: found.status === "Closed" ? "Closed" : found.status,
+          assignedTo: found.assignedTo || null,
           aiExplanation: package_?.aiInvestigationSummary || found.aiExplanation,
           aiSummary: package_?.aiInvestigationSummary || found.aiSummary,
           aiRecommendation: package_?.recommendation?.action || found.aiRecommendation,
@@ -1280,8 +1287,7 @@ app.post("/api/cases/:id/investigate", async (req, res) => {
       saved = await casesStore.updateCase(found.id, (c) => ({
         ...c,
         investigation: package_,
-        status: c.status === "Closed" ? "Closed" : "Under Review",
-        assignedTo: c.assignedTo || "Analyst",
+        status: c.status === "Closed" ? "Closed" : c.status,
       }));
     }
     res.json({ success: true, case: saved });
@@ -1303,6 +1309,14 @@ app.get("/api/campaigns", async (_req, res) => {
     }
     res.json({ success: true, source: "local", campaigns: await casesStore.listCampaigns() });
   } catch (error) {
+    if (isSupabaseNetworkError(error)) {
+      logSupabaseFallbackOnce("GET /api/campaigns", error);
+      return res.json({
+        success: true,
+        source: "local",
+        campaigns: await casesStore.listCampaigns(),
+      });
+    }
     console.error("Campaigns Error:", error);
     res.status(500).json({ success: false, error: error.message });
   }
@@ -1368,6 +1382,7 @@ app.listen(PORT, () => {
   if (isSupabaseConfigured) {
     console.log("✅ Supabase configured — fraud_cases live storage enabled");
     console.log("   POST /api/report · GET /api/cases · PATCH /api/cases/:id");
+    probeSupabaseConnectivity();
   } else {
     console.warn("⚠️ Supabase not configured — using local fraud_cases.json fallback");
     console.warn("   Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in backend/.env");
@@ -1377,3 +1392,19 @@ app.listen(PORT, () => {
   }
   console.log("✅ Fraud Operations API ready at /api/cases");
 });
+
+async function probeSupabaseConnectivity() {
+  try {
+    const sb = getSupabase();
+    const { error } = await sb.from("fraud_cases").select("id").limit(1);
+    if (error) throw error;
+    console.log("✅ Supabase reachable");
+  } catch (error) {
+    if (isSupabaseNetworkError(error)) {
+      logSupabaseFallbackOnce("startup", error);
+      console.warn("   Read APIs will use local fraud_cases.json until connectivity returns.");
+    } else {
+      console.warn("⚠️ Supabase probe failed:", error.message || error);
+    }
+  }
+}

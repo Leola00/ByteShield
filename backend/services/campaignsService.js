@@ -37,6 +37,41 @@ function campaignTitleFromKey(key) {
   return campaignIdFromIndicatorKey(key);
 }
 
+function caseSubmittedAt(c) {
+  return c?.submittedAt || c?.createdAt || c?.created_at || null;
+}
+
+/** Last 7 calendar days, oldest index 0 → today index 6 */
+function buildTrendFromMembers(members = []) {
+  const trend = [0, 0, 0, 0, 0, 0, 0];
+  const now = Date.now();
+  let placed = 0;
+
+  members.forEach((c) => {
+    const submitted = caseSubmittedAt(c);
+    if (!submitted) return;
+    const daysAgo = Math.floor((now - new Date(submitted).getTime()) / 86400000);
+    if (daysAgo >= 0 && daysAgo < 7) {
+      trend[6 - daysAgo] += 1;
+      placed += 1;
+    }
+  });
+
+  if (placed === 0 && members.length > 0) {
+    const latest = members
+      .map(caseSubmittedAt)
+      .filter(Boolean)
+      .sort((a, b) => new Date(b) - new Date(a))[0];
+    if (latest) {
+      const daysAgo = Math.floor((now - new Date(latest).getTime()) / 86400000);
+      const bucket = daysAgo >= 0 && daysAgo < 7 ? 6 - daysAgo : 0;
+      trend[bucket] = members.length;
+    }
+  }
+
+  return trend;
+}
+
 function buildCampaignsFromCases(cases = []) {
   const groups = new Map();
 
@@ -106,10 +141,11 @@ function buildCampaignsFromCases(cases = []) {
       },
       description: `This campaign groups ${members.length} related report(s) sharing indicator ${key}.`,
       reportsThisWeek: members.filter((m) => {
-        if (!m.submittedAt) return false;
-        return Date.now() - new Date(m.submittedAt).getTime() < 7 * 86400000;
+        const submitted = caseSubmittedAt(m);
+        if (!submitted) return false;
+        return Date.now() - new Date(submitted).getTime() < 7 * 86400000;
       }).length,
-      trend: [0, 0, 0, 0, 0, 0, 0],
+      trend: buildTrendFromMembers(members),
       regions: [
         { name: "Riyadh", pct: 42, count: Math.round(members.length * 0.42) },
         { name: "Jeddah", pct: 28, count: Math.round(members.length * 0.28) },
@@ -123,4 +159,4 @@ function buildCampaignsFromCases(cases = []) {
   return campaigns.sort((a, b) => b.reportCount - a.reportCount);
 }
 
-module.exports = { buildCampaignsFromCases, extractCampaignKeys };
+module.exports = { buildCampaignsFromCases, extractCampaignKeys, buildTrendFromMembers, caseSubmittedAt };

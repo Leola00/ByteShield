@@ -617,6 +617,7 @@ body {
   font-size: 0.82rem;
   font-weight: 600;
   letter-spacing: 0.02em;
+  white-space: nowrap;
 }
 
 .bs-header__mode-badge--soc {
@@ -2195,26 +2196,36 @@ body {
 .mode-tabs--header {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   padding: 0;
   background: transparent;
   border: none;
   margin: 0;
+  flex-wrap: nowrap;
 }
 
 .mode-tab--header {
   flex: none;
-  padding: 10px 18px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
   border: 1.5px solid rgba(255, 255, 255, 0.5);
   border-radius: 999px;
   background: transparent;
   color: var(--white);
-  font-size: 0.88rem;
-  font-weight: 500;
+  font-size: 0.84rem;
+  font-weight: 600;
+  white-space: nowrap;
   box-shadow: none;
   cursor: pointer;
   font-family: inherit;
   transition: background 0.15s, border-color 0.15s;
+}
+
+.mode-tab__glyph {
+  font-size: 0.95rem;
+  line-height: 1;
 }
 
 .mode-tab--header:hover {
@@ -2322,6 +2333,11 @@ body {
   height: 100%;
   border-radius: 0;
   border: 0;
+}
+
+.byteshield-panel--fraud-active .bs-header__mode-badge {
+  display: none;
+}
 }
 
 /* Fraud Ops login gate — cream / navy / peach mockup */
@@ -3542,7 +3558,7 @@ body {
   --fo-low: #94a3b8;
   position: relative;
   display: grid;
-  grid-template-columns: 248px 1fr;
+  grid-template-columns: 268px 1fr;
   min-height: 0;
   height: 100%;
   max-height: none;
@@ -3565,6 +3581,53 @@ body {
   overflow-y: auto;
 }
 
+.fraud-ops__brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 10px 16px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.14);
+}
+
+.fraud-ops__brand-icon {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  background: rgba(167, 139, 250, 0.16);
+  color: #c4b5fd;
+}
+
+.fraud-ops__brand-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.fraud-ops__brand-title {
+  display: block;
+  font-size: 0.92rem;
+  font-weight: 700;
+  line-height: 1.25;
+  color: #f8fafc;
+  white-space: nowrap;
+}
+
+.fraud-ops__brand-sub {
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #64748b;
+  white-space: nowrap;
+}
+
 .fraud-ops__brand-pill {
   display: inline-flex;
   align-items: center;
@@ -3574,6 +3637,7 @@ body {
   color: #e9d5ff;
   font-weight: 700;
   font-size: 0.88rem;
+  white-space: nowrap;
 }
 
 .fraud-ops__nav-groups {
@@ -3642,6 +3706,11 @@ body {
   color: #1a1c2e;
   font-size: 0.7rem;
   font-weight: 800;
+}
+
+.fraud-ops__count--review {
+  background: #38bdf8;
+  color: #0f172a;
 }
 
 .fraud-ops__copilot-card {
@@ -3716,12 +3785,14 @@ body {
 
 .fraud-ops__topbar-brand strong {
   display: block;
-  font-size: 0.95rem;
+  font-size: 0.98rem;
+  font-weight: 700;
   color: #0f1d35;
+  letter-spacing: -0.01em;
 }
 
 .fraud-ops__topbar-brand span {
-  font-size: 0.72rem;
+  font-size: 0.74rem;
   color: #64748b;
 }
 
@@ -5022,6 +5093,23 @@ body {
   gap: 12px;
 }
 
+.fraud-notes-comments__list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.fraud-notes-comments__empty {
+  margin: 0;
+  color: #94a3b8;
+  font-size: 0.85rem;
+}
+
+.fraud-notes-comment-form button:disabled {
+  opacity: 0.7;
+  cursor: wait;
+}
+
 .fraud-notes-comment-form {
   display: flex;
   gap: 8px;
@@ -6275,6 +6363,145 @@ body {
   margin: 0 0 14px;
   font-size: 0.84rem;
   color: #64748b;
+}
+
+/* ── Case preview bar (pending queue — view before take) ── */
+.fraud-detail__release-bar {
+  margin: 0 0 14px;
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+  background: #fff8ed;
+  border: 1px solid rgba(245, 158, 11, 0.25);
+  border-radius: 12px;
+  position: relative;
+  z-index: 3;
+}
+
+.fraud-detail__release-bar .btn {
+  cursor: pointer;
+  pointer-events: auto;
+  flex-shrink: 0;
+  min-height: 36px;
+  padding: 8px 14px;
+  font-weight: 600;
+}
+
+.fraud-detail__release-bar .btn:hover:not(:disabled) {
+  background: #fef3c7;
+  border-color: #f59e0b;
+}
+
+.fraud-detail__release-bar .btn:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+
+.fraud-detail__release-bar[hidden] {
+  display: none !important;
+}
+
+.fraud-detail__release-bar-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.fraud-detail__release-bar-text strong {
+  font-size: 0.88rem;
+  color: #0f1d35;
+}
+
+.fraud-detail__release-bar-text span {
+  font-size: 0.78rem;
+  color: #64748b;
+  line-height: 1.4;
+}
+
+.fraud-detail__preview-bar {
+  margin: 0 0 14px;
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+  background: #f0f4ff;
+  border: 1px solid rgba(79, 70, 229, 0.18);
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(79, 70, 229, 0.06);
+}
+
+.fraud-ops__drawer--preview #fraud-detail-body {
+  display: flex;
+  flex-direction: column;
+}
+
+.fraud-ops__drawer--preview .fraud-detail__customer-report {
+  order: 1;
+}
+
+.fraud-ops__drawer--preview .fraud-detail__top,
+.fraud-ops__drawer--preview .fraud-detail__meta {
+  order: 0;
+}
+
+.fraud-alert--clickable {
+  cursor: pointer;
+}
+
+.fraud-alert--clickable:hover {
+  background: rgba(79, 70, 229, 0.06);
+}
+
+.fraud-queue__row--pending {
+  cursor: pointer;
+}
+
+.fraud-queue__row--pending:hover {
+  background: rgba(79, 70, 229, 0.04);
+}
+
+.fraud-ops__drawer--preview .fraud-detail__actions,
+.fraud-ops__drawer--preview .fraud-modify {
+  display: none !important;
+}
+
+.fraud-ops__drawer--preview #fraud-copilot-section,
+.fraud-ops__drawer--preview #fraud-case-note-add {
+  display: none !important;
+}
+
+.fraud-detail__preview-bar[hidden] {
+  display: none !important;
+}
+
+.fraud-detail__preview-bar-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.fraud-detail__preview-bar-text strong {
+  font-size: 0.88rem;
+  color: #0f1d35;
+}
+
+.fraud-detail__preview-bar-text span {
+  font-size: 0.78rem;
+  color: #64748b;
+  line-height: 1.4;
+}
+
+.fraud-detail__preview-bar-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 /* ── New note modal ── */

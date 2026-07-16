@@ -583,6 +583,17 @@ async function markUnderReview(id, assignedTo = "Analyst") {
   });
 }
 
+async function releaseToQueue(id) {
+  return updateCase(id, (c) => {
+    if (c.status === "Closed") return c;
+    return {
+      ...c,
+      status: "Pending Review",
+      assignedTo: null,
+    };
+  });
+}
+
 module.exports = {
   STATUSES,
   extractIocs,
@@ -595,5 +606,6 @@ module.exports = {
   getCampaignById,
   setDecision,
   markUnderReview,
+  releaseToQueue,
   isSupabaseConfigured: isConfigured,
 };
