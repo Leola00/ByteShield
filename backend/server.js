@@ -171,7 +171,6 @@ const PYTHON_ARGS = (process.env.PYTHON_ARGS || "").trim()
     ? ["-3"]
     : [];
 const ML_PREDICT_SCRIPT = path.join(__dirname, "ml", "predict_url.py");
-const FINANCIAL_FORECAST_SCRIPT = path.join(__dirname, "ml", "predict_financial_risk.py");
 const SOC_REPORT_SCRIPT = path.join(__dirname, "app.py");
 
 function getOpenAiModel() {
@@ -443,59 +442,6 @@ function runUrlMlPrediction(url) {
       } catch {
         reject(new Error("Invalid JSON from ML predictor"));
       }
-    });
-  });
-}
-
-function runFinancialForecast(payload) {
-  return new Promise((resolve, reject) => {
-    const child = spawn(PYTHON_BIN, [...PYTHON_ARGS, FINANCIAL_FORECAST_SCRIPT], {
-      cwd: __dirname,
-      windowsHide: true,
-      env: { ...process.env, PYTHONIOENCODING: "utf-8" },
-    });
-
-    let stdout = "";
-    let stderr = "";
-
-    child.stdout.on("data", (chunk) => {
-      stdout += chunk.toString();
-    });
-
-    child.stderr.on("data", (chunk) => {
-      stderr += chunk.toString();
-    });
-
-    child.on("error", (error) => {
-      reject(error);
-    });
-
-    child.stdin.write(JSON.stringify(payload));
-    child.stdin.end();
-
-    child.on("close", (code) => {
-      const output = stdout.trim();
-
-      if (output) {
-        try {
-          const parsed = JSON.parse(output);
-          if (code !== 0) {
-            reject(new Error(parsed.error || stderr.trim() || `Financial forecast exited with code ${code}`));
-            return;
-          }
-          resolve(parsed);
-          return;
-        } catch {
-          // fall through
-        }
-      }
-
-      if (code !== 0) {
-        reject(new Error(stderr.trim() || `Financial forecast exited with code ${code}`));
-        return;
-      }
-
-      reject(new Error("Invalid JSON from financial forecast generator"));
     });
   });
 }
@@ -1088,53 +1034,6 @@ app.post("/soc-report", async (req, res) => {
   } catch (error) {
     console.error("SOC Report Error:", error);
 
-    res.status(500).json({
-      success: false,
-      error: error.message,
-    });
-  }
-});
-
-app.post("/api/financial-forecast", async (req, res) => {
-  try {
-    const {
-      text,
-      riskScore,
-      classification,
-      estimatedLossSAR,
-      riskBreakdown,
-      contentType,
-    } = req.body;
-
-    const score = Number(riskScore) || 0;
-    const resolvedClassification =
-      classification || analytics.classificationFromScore(score);
-    const estimatedLoss =
-      estimatedLossSAR ??
-      analytics.estimateFinancialLoss(resolvedClassification, String(text || ""));
-
-    const result = await runFinancialForecast({
-      text: String(text || ""),
-      riskScore: score,
-      classification: resolvedClassification,
-      estimatedLossSAR: estimatedLoss,
-      riskBreakdown: riskBreakdown || {},
-      contentType: contentType || "Message",
-    });
-
-    if (!result.success) {
-      return res.status(500).json({
-        success: false,
-        error: result.error || "Financial forecast failed",
-      });
-    }
-
-    res.json({
-      success: true,
-      data: result,
-    });
-  } catch (error) {
-    console.error("Financial Forecast Error:", error);
     res.status(500).json({
       success: false,
       error: error.message,

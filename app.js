@@ -147,10 +147,6 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     return getApiUrl('/api/analytics');
   }
 
-  function getFinancialForecastUrl() {
-    return getApiUrl('/api/financial-forecast');
-  }
-
   function getPredictUrlEndpoint() {
     return getApiUrl('/predict-url');
   }
@@ -1123,59 +1119,6 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
       }).format(metrics.totalSavedMoneySAR ?? 0);
     } catch (err) {
       console.error('Failed to fetch financial impact data:', err);
-    }
-  }
-
-  function formatSar(amount) {
-    return new Intl.NumberFormat('ar-SA', {
-      style: 'currency',
-      currency: 'SAR',
-      maximumFractionDigits: 0,
-    }).format(amount ?? 0);
-  }
-
-  function renderFinancialForecast(forecast) {
-    if (!forecast || activeMode !== 'soc') return;
-
-    const lossEl = document.getElementById('forecast-predicted-loss');
-    const levelEl = document.getElementById('forecast-risk-level');
-    const detailEl = document.getElementById('soc-forecast-detail');
-    const summaryEl = document.getElementById('forecast-summary-ar');
-    const scoreEl = document.getElementById('forecast-risk-score');
-    const probEl = document.getElementById('forecast-fraud-prob');
-    const baselineEl = document.getElementById('forecast-baseline-loss');
-
-    if (lossEl) lossEl.textContent = formatSar(forecast.predictedLossSAR);
-    if (levelEl) levelEl.textContent = `مستوى التوقع: ${forecast.forecastLevel || '—'}`;
-    if (summaryEl) summaryEl.textContent = forecast.forecastSummaryAr || '';
-    if (scoreEl) scoreEl.textContent = String(forecast.financialRiskScore ?? '?');
-    if (probEl) probEl.textContent = `${Math.round((forecast.fraudProbability || 0) * 100)}%`;
-    if (baselineEl) baselineEl.textContent = formatSar(forecast.baselineLossSAR);
-    if (detailEl) detailEl.hidden = false;
-  }
-
-  async function fetchFinancialForecast(text, contentType, report) {
-    if (activeMode !== 'soc') return;
-
-    try {
-      const response = await fetch(getFinancialForecastUrl(), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          text,
-          contentType,
-          riskScore: report.score,
-          classification: report.tier?.statusEn || report.tier?.tierLabel,
-          riskBreakdown: report.riskBreakdown,
-        }),
-      });
-
-      const result = await response.json();
-      if (!response.ok || !result.success) return;
-
-      renderFinancialForecast(result.data);
-    } catch (err) {
-      console.error('Failed to fetch financial forecast:', err);
     }
   }
 
