@@ -4484,6 +4484,107 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     }
   }
 
+  // Fraud Ops investigation content is always presented in English. When the
+  // stored package is incomplete or in Arabic, build a complete English fallback
+  // on the client so every section is populated regardless of backend state.
+  function hasArabic(value) {
+    return /[\u0600-\u06FF]/.test(String(value == null ? '' : value));
+  }
+
+  function englishOr(existing, fallback) {
+    const s = String(existing == null ? '' : existing).trim();
+    if (!s || hasArabic(s)) return fallback;
+    return existing;
+  }
+
+  function buildLocalInvestigationClient(c) {
+    const score = Number(c.fraudProbability) || 0;
+    const iocs = c.iocs || {};
+    const domains = iocs.domains || [];
+    const emails = iocs.emails || [];
+    const urls = iocs.urls || [];
+    const phones = iocs.phones || [];
+    const category = String(c.fraudCategory || c.threatType || 'fraud').replace(/_/g, ' ');
+    const contentType = c.contentType || 'Message';
+
+    let action = 'Continue Monitoring';
+    if (score >= 75 && domains.length) action = 'Block Domain';
+    else if (score >= 75 && emails.length) action = 'Block Sender';
+    else if (score >= 61) action = 'Escalate to Fraud Team';
+    else if (score >= 31) action = 'Notify Customer';
+    else action = 'False Positive';
+
+    const explanationIsEnglish = c.aiExplanation && !hasArabic(c.aiExplanation);
+
+    return {
+      aiInvestigationSummary:
+        `Customer reported a ${category} case with fraud probability ${score}/100. ` +
+        `Primary evidence type: ${contentType}. ` +
+        (domains[0]
+          ? `Key domain indicator: ${domains[0]}.`
+          : emails[0]
+            ? `Key sender indicator: ${emails[0]}.`
+            : 'No strong domain/email IOC extracted.'),
+      recommendation: {
+        action,
+        rationale: `Based on score ${score}/100 and extracted indicators, ${action} is the most appropriate next step for analyst review.`,
+        confidence: Math.min(95, Math.max(40, score)),
+      },
+      executiveInvestigationSummary:
+        `A customer submitted a potential ${category} report. ` +
+        `AI assessed fraud probability at ${score}/100. ` +
+        `Recommended analyst action: ${action}. ` +
+        `Human confirmation is required before containment.`,
+      technicalInvestigationSummary:
+        `Evidence type: ${contentType}. ` +
+        `IOCs — domains: ${domains.join(', ') || 'none'}; ` +
+        `URLs: ${urls.slice(0, 3).join(', ') || 'none'}; ` +
+        `emails: ${emails.join(', ') || 'none'}; ` +
+        `phones: ${phones.join(', ') || 'none'}. ` +
+        `Customer explanation from first-line AI: ${explanationIsEnglish ? c.aiExplanation : 'n/a (original report in Arabic)'}.`,
+      customerNotificationDraft:
+        `Dear Customer,\n\nThank you for reporting this suspicious message through ByteShield. ` +
+        `Our Fraud Operations team is reviewing the case. Please do not click any links, share OTP codes, or provide account credentials. ` +
+        `If you already interacted with the message, contact official bank support immediately.\n\nBest regards,\nAlinma Bank`,
+      managementSummary:
+        `Fraud Ops received a customer report scored ${score}/100 (${category}). ` +
+        `Recommended action pending analyst decision: ${action}.`,
+      investigationNotes: [
+        `Case ${caseDisplayId(c)} ingested from Personal Protection report.`,
+        `Fraud probability: ${score}/100.`,
+        `Category: ${category}.`,
+        `Campaign linkage: ${c.campaignId || 'none'}.`,
+        'Analyst must Approve, Modify, or Reject the AI recommendation.',
+      ],
+      source: 'local-client',
+    };
+  }
+
+  function toEnglishInvestigation(c) {
+    const base = c.investigation || {};
+    const L = buildLocalInvestigationClient(c);
+    const baseNotesEnglish =
+      Array.isArray(base.investigationNotes) &&
+      base.investigationNotes.length &&
+      !base.investigationNotes.some((n) => hasArabic(n));
+    return {
+      aiInvestigationSummary: englishOr(base.aiInvestigationSummary, L.aiInvestigationSummary),
+      recommendation: {
+        action: base.recommendation?.action || L.recommendation.action,
+        rationale: englishOr(base.recommendation?.rationale, L.recommendation.rationale),
+        confidence:
+          base.recommendation?.confidence != null
+            ? base.recommendation.confidence
+            : L.recommendation.confidence,
+      },
+      executiveInvestigationSummary: englishOr(base.executiveInvestigationSummary, L.executiveInvestigationSummary),
+      technicalInvestigationSummary: englishOr(base.technicalInvestigationSummary, L.technicalInvestigationSummary),
+      customerNotificationDraft: englishOr(base.customerNotificationDraft, L.customerNotificationDraft),
+      managementSummary: englishOr(base.managementSummary, L.managementSummary),
+      investigationNotes: baseNotesEnglish ? base.investigationNotes : L.investigationNotes,
+    };
+  }
+
   async function selectFraudCase(id, { preview = false, refreshLists = true } = {}) {
     selectedFraudCaseId = id;
     fraudCopilotHistory = [];
@@ -4538,7 +4639,7 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
       }
 
       selectedFraudCase = c;
-      const inv = c.investigation || {};
+      const inv = toEnglishInvestigation(c);
 
       if (fraudDetailEmpty) {
         fraudDetailEmpty.hidden = true;

@@ -19,6 +19,12 @@ function analystsMatch(assignee, analyst) {
   return a === b || a.includes(b) || b.includes(a);
 }
 
+// Fraud Ops investigation content must be presented in English. Detect Arabic
+// script so we can regenerate an English package when a stored stub is Arabic.
+function containsArabic(value) {
+  return /[\u0600-\u06FF]/.test(String(value || ""));
+}
+
 function createFraudOpsRouter({ casesStore, investigation, openai, callOpenAiJson } = {}) {
   const router = express.Router();
 
@@ -278,13 +284,31 @@ function createFraudOpsRouter({ casesStore, investigation, openai, callOpenAiJso
           return res.status(404).json({ success: false, error: "Case not found" });
         }
 
-        // Ensure full AI investigation package (screenshot cases often only had a stub)
-        if (
-          !previewOnly &&
+        // Ensure a full, English investigation package always shows in the drawer —
+        // even in preview ("Work on this case?") mode before the case is assigned.
+        const hasInvestigation =
           investigation &&
-          typeof investigation.generateInvestigation === "function" &&
-          !investigation.isInvestigationComplete(found.investigation)
-        ) {
+          typeof investigation.generateInvestigation === "function";
+        const needsFill =
+          hasInvestigation &&
+          (!investigation.isInvestigationComplete(found.investigation) ||
+            containsArabic(found.investigation?.aiInvestigationSummary) ||
+            containsArabic(found.investigation?.recommendation?.rationale) ||
+            containsArabic(found.investigation?.executiveInvestigationSummary));
+
+        if (needsFill && previewOnly) {
+          // Fast, in-memory English package for the read-only preview (no persist).
+          const package_ = investigation.buildLocalInvestigation(found);
+          found = {
+            ...found,
+            investigation: package_,
+            aiExplanation:
+              package_?.aiInvestigationSummary || found.aiExplanation,
+            aiSummary: package_?.aiInvestigationSummary || found.aiSummary,
+            aiRecommendation:
+              package_?.recommendation?.action || found.aiRecommendation,
+          };
+        } else if (needsFill) {
           try {
             const package_ = await investigation.generateInvestigation(
               openai,

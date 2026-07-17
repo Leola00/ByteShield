@@ -45,6 +45,9 @@ function buildLocalInvestigation(caseRecord) {
   const domains = caseRecord.iocs?.domains || [];
   const emails = caseRecord.iocs?.emails || [];
   const category = caseRecord.fraudCategory || caseRecord.threatType || "fraud";
+  // Keep Fraud Ops output in English: skip a non-English first-line explanation.
+  const explanationIsEnglish =
+    caseRecord.aiExplanation && !/[\u0600-\u06FF]/.test(String(caseRecord.aiExplanation));
 
   let action = "Continue Monitoring";
   if (score >= 75 && domains.length) action = "Block Domain";
@@ -80,7 +83,7 @@ function buildLocalInvestigation(caseRecord) {
       `URLs: ${(caseRecord.iocs?.urls || []).slice(0, 3).join(", ") || "none"}; ` +
       `emails: ${(emails || []).join(", ") || "none"}; ` +
       `phones: ${(caseRecord.iocs?.phones || []).join(", ") || "none"}. ` +
-      `Customer explanation from first-line AI: ${caseRecord.aiExplanation || "n/a"}.`,
+      `Customer explanation from first-line AI: ${explanationIsEnglish ? caseRecord.aiExplanation : "n/a (original report in Arabic)"}.`,
     customerNotificationDraft:
       `Dear Customer,\n\nThank you for reporting this suspicious message through ByteShield. ` +
       `Our Fraud Operations team is reviewing the case. Please do not click any links, share OTP codes, or provide account credentials. ` +

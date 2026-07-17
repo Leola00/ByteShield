@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#0a1628" />
   <meta name="description" content="مصرف الإنماء – ByteShield: فحص ذكي للاحتيال والتصيد الاحتيالي" />
   <title>الإنماء | ByteShield</title>
-  <link rel="stylesheet" href="styles.css?v=31" />
+  <link rel="stylesheet" href="styles.css?v=36" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -112,7 +112,7 @@
   <!-- ByteShield feature panel -->
   <div class="byteshield-panel" id="byteshield-panel" hidden>
     <!-- FRAUD OPS LOGIN GATE -->
-    <div class="fraud-login" id="fraud-login" hidden>
+    <div class="fraud-login" id="fraud-login" dir="ltr" hidden>
       <section class="fraud-login__form-wrap">
         <form class="fraud-login__card" id="fraud-login-form" autocomplete="on">
           <div class="fraud-login__card-icon" aria-hidden="true">
@@ -173,19 +173,30 @@
           ByteShield Fraud Operations is secure and monitored 24/7
           <span class="fraud-login__secure-check" aria-hidden="true">✓</span>
         </p>
-        <p class="fraud-login__session-note">Sessions expire after 30 minutes of inactivity for your security.</p>
       </section>
 
       <section class="fraud-login__brand" aria-label="ByteShield branding">
         <div class="fraud-login__brand-bg" aria-hidden="true">
           <div class="fraud-login__rings"></div>
-          <div class="fraud-login__mesh"></div>
+          <svg class="fraud-login__waves" viewBox="0 0 600 300" preserveAspectRatio="xMidYMax slice" aria-hidden="true">
+            <defs>
+              <path id="fl-wave" d="M-40 40 Q 60 12 160 40 T 360 40 T 560 40 T 760 40" fill="none" />
+            </defs>
+            <g class="fraud-login__wave-lines">
+              <use href="#fl-wave" y="0" /><use href="#fl-wave" y="14" /><use href="#fl-wave" y="28" />
+              <use href="#fl-wave" y="42" /><use href="#fl-wave" y="56" /><use href="#fl-wave" y="70" />
+              <use href="#fl-wave" y="84" /><use href="#fl-wave" y="98" /><use href="#fl-wave" y="112" />
+              <use href="#fl-wave" y="126" /><use href="#fl-wave" y="140" /><use href="#fl-wave" y="154" />
+              <use href="#fl-wave" y="168" /><use href="#fl-wave" y="182" /><use href="#fl-wave" y="196" />
+              <use href="#fl-wave" y="210" /><use href="#fl-wave" y="224" /><use href="#fl-wave" y="238" />
+            </g>
+          </svg>
         </div>
         <div class="fraud-login__brand-inner">
           <div class="fraud-login__logo" aria-hidden="true">
-            <svg viewBox="0 0 72 72" width="72" height="72" fill="none">
-              <path d="M36 6L58 15V33c0 16.5-10 29.5-22 34C24 62.5 14 49.5 14 33V15L36 6Z" fill="#1A2536"/>
-              <text x="36" y="42" text-anchor="middle" fill="#F7F3EE" font-size="26" font-family="Segoe UI, Arial, sans-serif" font-weight="700">B</text>
+            <svg viewBox="0 0 72 72" width="70" height="70" fill="none">
+              <path d="M36 5L60 14V32c0 16.8-10.2 30-24 34.5C22.2 62 12 48.8 12 32V14L36 5Z" fill="#1A2536"/>
+              <path d="M44 26.5a11 11 0 1 0 1.2 15.8V35.5h-9.4v4.6h4.6a6.4 6.4 0 1 1-1-7.4l4.6-6.2Z" fill="#F7F3EE"/>
             </svg>
           </div>
           <h1>ByteShield</h1>
@@ -1546,6 +1557,6 @@
   <script src="js/campaign-ids.js?v=1"></script>
   <script src="js/fraud-ops-names.js?v=1"></script>
   <script src="playbooks-data.js?v=2"></script>
-  <script src="app.js?v=50"></script>
+  <script src="app.js?v=51"></script>
 </body>
 </html>
