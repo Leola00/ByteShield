@@ -22,6 +22,8 @@
   }
 
   const SESSION_KEY = "byteshield_fraud_ops_session";
+  /** Re-authenticate after 30 minutes without activity in Fraud Ops */
+  const IDLE_TIMEOUT_MS = 30 * 60 * 1000;
 
   function saveSession(payload) {
     try {
@@ -47,6 +49,43 @@
     }
   }
 
+  function touchActivity() {
+    const sess = loadSession();
+    if (!sess?.analyst) return;
+    sess.lastActivityAt = Date.now();
+    saveSession(sess);
+  }
+
+  function isSessionExpired(sess) {
+    sess = sess || loadSession();
+    if (!sess?.analyst) return true;
+    const last = Number(sess.lastActivityAt || sess.at || 0);
+    if (!last) return true;
+    return Date.now() - last > IDLE_TIMEOUT_MS;
+  }
+
+  /** Returns session if still valid; clears storage when idle-expired */
+  function validateSession() {
+    const sess = loadSession();
+    if (!sess?.analyst) return null;
+    if (isSessionExpired(sess)) {
+      clearSession();
+      return null;
+    }
+    return sess;
+  }
+
+  function isAuthenticated() {
+    return !!validateSession()?.analyst;
+  }
+
+  function idleRemainingMs() {
+    const sess = loadSession();
+    if (!sess?.analyst) return 0;
+    const last = Number(sess.lastActivityAt || sess.at || 0);
+    return Math.max(0, IDLE_TIMEOUT_MS - (Date.now() - last));
+  }
+
   async function login(email, password) {
     const data = await jsonFetch("/api/auth/login", {
       method: "POST",
@@ -56,12 +95,13 @@
       analyst: data.analyst,
       session: data.session,
       at: Date.now(),
+      lastActivityAt: Date.now(),
     });
     return data;
   }
 
   function currentAnalyst() {
-    return loadSession()?.analyst || null;
+    return validateSession()?.analyst || null;
   }
 
   async function updateAnalystProfile(id, updates) {
@@ -160,6 +200,12 @@
     loadSession,
     saveSession,
     clearSession,
+    touchActivity,
+    validateSession,
+    isAuthenticated,
+    isSessionExpired,
+    idleRemainingMs,
+    IDLE_TIMEOUT_MS,
     currentAnalyst,
     updateAnalystProfile,
     listNotes,

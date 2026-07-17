@@ -314,7 +314,7 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     byteshieldPanel.scrollTop = 0;
     updateResultsVisibility();
     if (activeMode === 'fraud') {
-      if (fraudOpsAuthenticated) enterFraudOpsDashboard();
+      if (ensureFraudSessionOrLogin()) enterFraudOpsDashboard();
       else showFraudLogin();
     } else {
       hideFraudLogin();
@@ -740,13 +740,13 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
   let lastScreenshotDataUrl = null;
   let fraudOpsAuthenticated = false;
   const FRAUD_AUTH_KEY = 'byteshield_fraud_ops_auth';
+  let fraudActivityTouchAt = 0;
+  let fraudIdleCheckTimer = null;
 
   function hasValidFraudSession() {
     try {
       if (typeof FraudOpsLive !== 'undefined') {
-        const sess = FraudOpsLive.loadSession();
-        if (sess?.analyst?.id || sess?.analyst?.email) return true;
-        // Stale flag from before Supabase Auth — clear it so login shows
+        if (FraudOpsLive.isAuthenticated()) return true;
         sessionStorage.removeItem(FRAUD_AUTH_KEY);
         localStorage.removeItem(FRAUD_AUTH_KEY);
         return false;
@@ -758,10 +758,85 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     }
   }
 
-  try {
+  function syncFraudAuthState() {
     fraudOpsAuthenticated = hasValidFraudSession();
-  } catch {
-    fraudOpsAuthenticated = false;
+    return fraudOpsAuthenticated;
+  }
+
+  function recordFraudActivity() {
+    if (!fraudOpsAuthenticated || activeMode !== 'fraud') return;
+    const now = Date.now();
+    if (now - fraudActivityTouchAt < 15000) return;
+    fraudActivityTouchAt = now;
+    if (typeof FraudOpsLive !== 'undefined') FraudOpsLive.touchActivity();
+  }
+
+  function expireFraudSession(reason) {
+    if (!fraudOpsAuthenticated && !hasValidFraudSession()) return;
+    setFraudAuth(false, false);
+    if (typeof FraudOpsLive !== 'undefined') {
+      FraudOpsLive.clearSession();
+      FraudOpsLive.stopRealtime();
+    }
+    stopFraudCasesAutoRefresh();
+    closeFraudDrawer();
+    closeFraudSettings();
+    if (fraudOps) fraudOps.hidden = true;
+    if (fraudLoginPass) fraudLoginPass.value = '';
+    showFraudLogin();
+    showToast(
+      reason === 'idle'
+        ? 'Session expired after 30 minutes of inactivity. Please sign in again.'
+        : 'Please sign in again.',
+    );
+  }
+
+  function ensureFraudSessionOrLogin() {
+    if (!syncFraudAuthState()) {
+      showFraudLogin();
+      return false;
+    }
+    return true;
+  }
+
+  function checkFraudIdleSession() {
+    if (!fraudOpsAuthenticated || activeMode !== 'fraud') return;
+    if (typeof FraudOpsLive !== 'undefined' && !FraudOpsLive.isAuthenticated()) {
+      expireFraudSession('idle');
+    }
+  }
+
+  function startFraudIdleGuard() {
+    if (fraudIdleCheckTimer) return;
+    fraudIdleCheckTimer = window.setInterval(checkFraudIdleSession, 60000);
+  }
+
+  function stopFraudIdleGuard() {
+    if (!fraudIdleCheckTimer) return;
+    window.clearInterval(fraudIdleCheckTimer);
+    fraudIdleCheckTimer = null;
+  }
+
+  function initFraudSessionGuard() {
+    const activityEvents = ['mousedown', 'keydown', 'click', 'scroll', 'touchstart'];
+    activityEvents.forEach((eventName) => {
+      document.addEventListener(eventName, recordFraudActivity, { passive: true });
+    });
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState !== 'visible') return;
+      if (fraudOpsAuthenticated || activeMode === 'fraud') {
+        checkFraudIdleSession();
+      }
+    });
+
+    window.addEventListener('focus', () => {
+      if (fraudOpsAuthenticated || activeMode === 'fraud') {
+        checkFraudIdleSession();
+      }
+    });
+
+    startFraudIdleGuard();
   }
 
   const fraudLogin = document.getElementById('fraud-login');
@@ -811,9 +886,11 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
   }
 
   function enterFraudOpsDashboard() {
+    if (!ensureFraudSessionOrLogin()) return;
     hideFraudLogin();
     if (fraudOps) fraudOps.hidden = false;
     if (byteshieldPanel) byteshieldPanel.classList.add('byteshield-panel--fraud-active');
+    recordFraudActivity();
     applyLiveAnalystToUi();
     applyFraudSettingsToUi();
     renderFraudOpsDashboard();
@@ -955,6 +1032,8 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     stopFraudCasesAutoRefresh();
     fraudCasesPollTimer = setInterval(() => {
       if (activeMode !== 'fraud' || !fraudOpsAuthenticated) return;
+      checkFraudIdleSession();
+      if (!fraudOpsAuthenticated) return;
       if (fraudOps?.hidden) return;
       renderFraudOpsDashboard();
     }, 12000);
@@ -999,7 +1078,7 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     if (userWorkspace) userWorkspace.hidden = isFraud;
 
     if (isFraud) {
-      if (fraudOpsAuthenticated) {
+      if (ensureFraudSessionOrLogin()) {
         enterFraudOpsDashboard();
       } else {
         showFraudLogin();
@@ -4795,7 +4874,10 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     if (analyst && typeof FraudOpsLive !== 'undefined') {
       const sess = FraudOpsLive.loadSession() || {};
       sess.analyst = analyst;
+      sess.lastActivityAt = Date.now();
+      sess.at = sess.at || Date.now();
       FraudOpsLive.saveSession(sess);
+      FraudOpsLive.touchActivity();
     }
     if (fraudLoginError) fraudLoginError.hidden = true;
     enterFraudOpsDashboard();
@@ -4869,6 +4951,8 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
       showToast('Signed out');
     });
   }
+
+  initFraudSessionGuard();
 
   if (btnFraudSettings) {
     btnFraudSettings.addEventListener('click', () => openFraudSettings());
@@ -5263,6 +5347,7 @@ Reply with your OTP code if you received one. Do NOT call the bank — this is f
     });
   }
 
+  syncFraudAuthState();
   renderFraudOpsDashboard();
   updateScanInputForMode(activeMode);
 })();

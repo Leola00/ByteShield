@@ -2613,6 +2613,14 @@ body {
   flex-shrink: 0;
 }
 
+.fraud-login__session-note {
+  margin: 10px 0 0;
+  font-size: 0.75rem;
+  color: #64748b;
+  text-align: center;
+  line-height: 1.4;
+}
+
 .fraud-login__brand {
   position: relative;
   display: flex;
@@ -3913,14 +3921,6 @@ body {
 
 .fraud-kpi--all-total strong {
   color: #5b21b6;
-}
-
-.fraud-donut--status {
-  background: conic-gradient(
-    #a78bfa 0 calc(var(--pending) * 1%),
-    #60a5fa calc(var(--pending) * 1%) calc((var(--pending) + var(--review)) * 1%),
-    #34d399 calc((var(--pending) + var(--review)) * 1%) 100%
-  );
 }
 
 .fraud-dot--pending { background: #a78bfa; }
@@ -6050,6 +6050,17 @@ body {
   display: grid;
   place-items: center;
   flex-shrink: 0;
+}
+
+.fraud-donut.fraud-donut--status {
+  --pending: 0;
+  --review: 0;
+  --closed: 100;
+  background: conic-gradient(
+    #a78bfa 0 calc(var(--pending) * 1%),
+    #60a5fa calc(var(--pending) * 1%) calc((var(--pending) + var(--review)) * 1%),
+    #34d399 calc((var(--pending) + var(--review)) * 1%) 100%
+  );
 }
 
 .fraud-donut__hole {
